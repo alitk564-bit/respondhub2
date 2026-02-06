@@ -86,15 +86,6 @@
         ];
 
         const App = () => {
-            const App = () => {
-    const [data, setData] = useState(() => {
-        if (window.INITIAL_DATA) return window.INITIAL_DATA;
-        const saved = localStorage.getItem('agent_helper_data');
-        return saved ? JSON.parse(saved) : [];
-    });
-
-
-if (!isAuthenticated) return <div className="bg-slate-900 min-h-screen"></div>;
             const [data, setData] = useState(() => {
                 if (window.INITIAL_DATA) return window.INITIAL_DATA;
                 const saved = localStorage.getItem('agent_helper_data');
@@ -442,7 +433,3 @@ if (!isAuthenticated) return <div className="bg-slate-900 min-h-screen"></div>;
     </script>
 </body>
 </html>
-
-
-
-
