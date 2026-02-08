@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Response Hub | Live Sync</title>
+    <title>Response Hub</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,13 +12,13 @@
             theme: {
                 extend: {
                     fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-                    boxShadow: { 'card': '0 4px 20px -5px rgba(0,0,0,0.07), 0 0 1px rgba(0,0,0,0.1)' }
+                    boxShadow: { 'card': '0 2px 12px -2px rgba(0,0,0,0.05), 0 0 1px rgba(0,0,0,0.1)' }
                 }
             }
         }
     </script>
     
-    <!-- Firebase SDKs (Compat) -->
+    <!-- Firebase SDKs (Compat - Stable for single file) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -28,16 +28,16 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Excel Parser -->
+    <!-- Utilities -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
-        body { background-color: #f1f5f9; color: #0f172a; }
-        .glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(226, 232, 240, 0.8); }
-        .loader { border: 2px solid #e2e8f0; border-top: 2px solid #6366f1; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.8s linear infinite; }
+        body { background-color: #f8fafc; color: #1e293b; overflow-x: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid #e2e8f0; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .animate-up { animation: slideUp 0.3s ease-out forwards; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
     </style>
 </head>
@@ -47,9 +47,9 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- ICONS ---
+        // --- ICONS (Inline for stability) ---
         const Icon = ({ path, className = "w-5 h-5" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 {path}
             </svg>
         );
@@ -63,54 +63,64 @@
             Upload: () => <Icon path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>} />,
             Lock: () => <Icon path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>} />,
             Unlock: () => <Icon path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>} />,
+            Zap: () => <Icon path={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />,
+            Cloud: () => <Icon path={<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>} />,
             Copy: () => <Icon path={<><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>} />,
-            Globe: () => <Icon path={<><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></>} />
+            Save: () => <Icon path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>} />,
+            Heart: () => <Icon className="w-3 h-3 text-rose-400 fill-current" path={<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>} />,
+            HardDrive: () => <Icon path={<><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></>} />
         };
 
+        // --- Firebase Config Check & Init ---
+        let app, auth, db, appId, isCloudAvailable = false;
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                const config = JSON.parse(__firebase_config);
+                app = firebase.initializeApp(config);
+                auth = firebase.auth();
+                db = firebase.firestore();
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+                isCloudAvailable = true;
+            }
+        } catch (e) {
+            console.log("Running in Local Mode (Cloud config missing or invalid)");
+        }
+
+        // --- Constants ---
         const THEMES = [
-            { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
-            { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-            { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-            { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
-            { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
-            { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
+            { id: 'blue', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', ring: 'ring-blue-500' },
+            { id: 'violet', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', ring: 'ring-violet-500' },
+            { id: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', ring: 'ring-emerald-500' },
+            { id: 'amber', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', ring: 'ring-amber-500' },
+            { id: 'rose', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', ring: 'ring-rose-500' },
+            { id: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', ring: 'ring-indigo-500' },
         ];
-
-        // --- Firebase Configuration ---
-        const firebaseConfig = {
-          apiKey: "AIzaSyCkWkxeidV9x8BvNGD-jcmL44ha4vHHlf8",
-          authDomain: "respondhub-c4641.firebaseapp.com",
-          projectId: "respondhub-c4641",
-          storageBucket: "respondhub-c4641.firebasestorage.app",
-          messagingSenderId: "682357623707",
-          appId: "1:682357623707:web:e256f3ab48219bbfdfaf3e",
-          measurementId: "G-TLKTF1JK6N"
-        };
-
-        const app = firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'respondhub-c4641';
-
-        // MANDATORY PATH: /artifacts/{appId}/public/data/{collectionName}
-        const DATA_PATH = ['artifacts', appId, 'public', 'data', 'responses'];
 
         const App = () => {
             const [user, setUser] = useState(null);
             const [isAdmin, setIsAdmin] = useState(false);
+            const [isLocalMode, setIsLocalMode] = useState(!isCloudAvailable);
             const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
             const [searchTerm, setSearchTerm] = useState("");
             const [activeCategory, setActiveCategory] = useState("All");
             const [showForm, setShowForm] = useState(false);
             const [editingItem, setEditingItem] = useState(null);
-            const [toast, setToast] = useState({ show: false, message: "" });
+            const [toast, setToast] = useState({ show: false, message: "", type: "success" });
             const [form, setForm] = useState({ category: "", scenario: "", message: "", section: "" });
             
             const fileInput = useRef(null);
 
-            // Authentication Lifecycle
+            // 1. Auth Init (Only if cloud available)
             useEffect(() => {
+                if (!isCloudAvailable) {
+                    setLoading(false);
+                    // Load local data on init
+                    const localData = localStorage.getItem('agent_helper_data');
+                    if(localData) setData(JSON.parse(localData));
+                    return;
+                }
+
                 const initAuth = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -118,300 +128,370 @@
                         } else {
                             await auth.signInAnonymously();
                         }
-                    } catch (e) {
-                        console.error("Auth failed", e);
+                    } catch (e) { 
+                        console.error("Auth error, switching to local", e);
+                        setIsLocalMode(true);
                         setLoading(false);
                     }
                 };
                 initAuth();
-                const unsubscribe = auth.onAuthStateChanged(setUser);
-                return () => unsubscribe();
+                return auth.onAuthStateChanged(setUser);
             }, []);
 
-            // Data Synchronization Lifecycle
+            // 2. Data Sync
             useEffect(() => {
-                if (!user) return;
-
-                const collectionRef = db.collection(...DATA_PATH);
+                if (isLocalMode) return;
+                if (!user || !db) return;
                 
-                // Real-time synchronization for all users
-                const unsubscribe = collectionRef.onSnapshot((snapshot) => {
-                    const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    // Simple memory sort by creation date
-                    const sorted = items.sort((a, b) => {
-                        const dateA = a.createdAt?.seconds || 0;
-                        const dateB = b.createdAt?.seconds || 0;
-                        return dateB - dateA;
+                // Using STRICT path structure required by environment
+                const unsubscribe = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses')
+                    .onSnapshot((snapshot) => {
+                        const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        setData(items);
+                        setLoading(false);
+                    }, (error) => {
+                        console.error("Sync error, falling back to local", error);
+                        setIsLocalMode(true);
+                        setLoading(false);
+                        // Fallback load
+                        const localData = localStorage.getItem('agent_helper_data');
+                        if(localData) setData(JSON.parse(localData));
                     });
-                    setData(sorted);
-                    setLoading(false);
-                }, (error) => {
-                    console.error("Firestore error:", error);
-                    setLoading(false);
-                });
-
                 return () => unsubscribe();
-            }, [user]);
+            }, [user, isLocalMode]);
 
+            // Computed
             const categories = useMemo(() => {
                 const unique = ["All", ...new Set(data.map(d => d.category))];
                 return unique.map((name, i) => ({ name, theme: THEMES[i % THEMES.length] }));
             }, [data]);
 
-            const showToast = (msg) => {
-                setToast({ show: true, message: msg });
-                setTimeout(() => setToast({ show: false, message: "" }), 3000);
+            const activeTheme = useMemo(() => {
+                return categories.find(c => c.name === activeCategory)?.theme || THEMES[0];
+            }, [categories, activeCategory]);
+
+            // Handlers
+            const showToast = (msg, type = "success") => {
+                setToast({ show: true, message: msg, type });
+                setTimeout(() => setToast({ show: false, message: "", type: "success" }), 2500);
             };
 
             const toggleAdmin = () => {
-                if (isAdmin) { setIsAdmin(false); showToast("Admin Mode Off"); }
-                else {
-                    const pw = prompt("Admin Password:");
-                    if (pw === "ALM989$100%") { setIsAdmin(true); showToast("Admin Mode On - Syncing Live"); }
-                    else if (pw !== null) showToast("Incorrect PIN");
+                if (isAdmin) {
+                    setIsAdmin(false);
+                    showToast("Exited Admin Mode");
+                } else {
+                    const pw = prompt("Enter Admin Password:");
+                    if (pw === "ALM989$100%") {
+                        setIsAdmin(true);
+                        showToast("Admin Mode Active");
+                    } else if (pw !== null) {
+                        showToast("Incorrect Password", "error");
+                    }
                 }
+            };
+
+            const saveLocally = (newData) => {
+                setData(newData);
+                localStorage.setItem('agent_helper_data', JSON.stringify(newData));
             };
 
             const handleSave = async (e) => {
                 e.preventDefault();
-                if (!isAdmin || !user) return;
-
+                if (!isAdmin) return;
+                
                 try {
-                    const colRef = db.collection(...DATA_PATH);
-                    const payload = {
-                        ...form,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    };
-
-                    if (editingItem) {
-                        await colRef.doc(editingItem.id).update(payload);
-                        showToast("Updated for all users");
+                    if (isLocalMode) {
+                        let updated;
+                        if (editingItem) {
+                            updated = data.map(i => i.id === editingItem.id ? { ...i, ...form } : i);
+                            showToast("Updated locally");
+                        } else {
+                            updated = [{ ...form, id: Date.now().toString() }, ...data];
+                            showToast("Saved locally");
+                        }
+                        saveLocally(updated);
                     } else {
-                        await colRef.add({
-                            ...payload,
-                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                        showToast("Added to global library");
+                        // Cloud Mode
+                        const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                        if (editingItem) {
+                            await colRef.doc(editingItem.id).update({
+                                ...form,
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                            showToast("Updated online");
+                        } else {
+                            await colRef.add({
+                                ...form,
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                            showToast("Saved to cloud");
+                        }
                     }
                     setShowForm(false);
                     setEditingItem(null);
                     setForm({ category: "", scenario: "", message: "", section: "" });
-                } catch (err) {
-                    showToast("Sync Failed - Check Permissions");
+                } catch (err) { 
+                    console.error(err);
+                    showToast("Save failed", "error"); 
                 }
             };
 
             const handleDelete = async (id, e) => {
                 e.stopPropagation();
-                if (!isAdmin || !confirm("Delete for everyone?")) return;
-                try {
-                    await db.collection(...DATA_PATH).doc(id).delete();
-                    showToast("Removed from cloud");
-                } catch (err) { showToast("Delete failed"); }
+                if (!isAdmin || !confirm("Delete this permanently?")) return;
+                
+                if (isLocalMode) {
+                    const updated = data.filter(i => i.id !== id);
+                    saveLocally(updated);
+                    showToast("Deleted locally");
+                } else {
+                    try {
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
+                        showToast("Deleted from cloud");
+                    } catch (err) { showToast("Delete failed", "error"); }
+                }
             };
 
-            const handleBulkImport = (e) => {
+            const handleImport = (e) => {
                 const file = e.target.files[0];
                 if (!file || !isAdmin) return;
                 const reader = new FileReader();
                 reader.onload = async (evt) => {
                     try {
                         const wb = XLSX.read(evt.target.result, { type: 'binary' });
-                        const colRef = db.collection(...DATA_PATH);
+                        let newItems = [];
                         let count = 0;
                         
-                        for (const sheetName of wb.SheetNames) {
-                            const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+                        // If Cloud
+                        const colRef = !isLocalMode ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses') : null;
+
+                        for (const sheet of wb.SheetNames) {
+                            const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
                             for (const row of rows) {
-                                const scenario = row.Scenario || row.scenario || row.Title || "Untitled";
-                                const message = row.Message || row.message || row.Content;
-                                const section = row.Section || row.section || "General";
+                                const keys = Object.keys(row);
+                                const scenario = row[keys.find(k => k.toLowerCase().includes('scenario'))] || "Untitled";
+                                const message = row[keys.find(k => k.toLowerCase().includes('message'))] || "";
                                 
                                 if (message) {
-                                    await colRef.add({
-                                        category: sheetName,
+                                    const entry = {
+                                        category: sheet,
                                         scenario: String(scenario),
                                         message: String(message),
-                                        section: String(section),
-                                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                                    });
+                                        section: String(row.Section || ""),
+                                        createdAt: new Date().toISOString()
+                                    };
+
+                                    if (isLocalMode) {
+                                        entry.id = `local-${Date.now()}-${count}`;
+                                        newItems.push(entry);
+                                    } else {
+                                        // Async cloud add
+                                        colRef.add({
+                                            ...entry,
+                                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                                        });
+                                    }
                                     count++;
                                 }
                             }
                         }
-                        showToast(`Bulk Sync: ${count} entries added`);
-                    } catch (err) { showToast("Import Failed"); }
+                        
+                        if (isLocalMode) {
+                            saveLocally([...newItems, ...data]);
+                        }
+                        
+                        showToast(`Imported ${count} items`);
+                    } catch (err) { showToast("Import failed", "error"); }
                 };
                 reader.readAsBinaryString(file);
             };
 
-            const filteredData = data.filter(item => {
+            const filtered = data.filter(item => {
                 const s = searchTerm.toLowerCase();
-                const matchSearch = item.scenario.toLowerCase().includes(s) || item.message.toLowerCase().includes(s) || (item.section || "").toLowerCase().includes(s);
-                const matchCat = activeCategory === "All" || item.category === activeCategory;
-                return matchSearch && matchCat;
+                const matchesSearch = (item.scenario || "").toLowerCase().includes(s) || (item.message || "").toLowerCase().includes(s);
+                const matchesCat = activeCategory === "All" || item.category === activeCategory;
+                return matchesSearch && matchesCat;
             });
 
-            const groupedData = useMemo(() => {
+            // Grouping Logic
+            const sections = useMemo(() => {
                 const groups = {};
-                filteredData.forEach(item => {
-                    const sec = item.section || "General";
-                    if (!groups[sec]) groups[sec] = [];
-                    groups[sec].push(item);
+                const noSection = [];
+                filtered.forEach(item => {
+                    if (item.section && item.section.trim()) {
+                        if (!groups[item.section]) groups[item.section] = [];
+                        groups[item.section].push(item);
+                    } else {
+                        noSection.push(item);
+                    }
                 });
-                return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
-            }, [filteredData]);
+                return { groups, sortedKeys: Object.keys(groups).sort(), noSection };
+            }, [filtered]);
+
+            // Rendering Cards
+            const RenderCard = ({ item }) => {
+                const theme = categories.find(c => c.name === item.category)?.theme || THEMES[0];
+                return (
+                    <div 
+                        onClick={() => { navigator.clipboard.writeText(item.message); showToast("Copied!"); }}
+                        className="group bg-white p-5 rounded-2xl shadow-card border border-transparent hover:border-slate-200 hover:shadow-lg transition-all cursor-pointer relative flex flex-col h-full overflow-hidden"
+                    >
+                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${theme.bg.replace('bg-', 'bg-')}-500`}></div>
+                        <div className="flex justify-between items-start mb-3 pl-2">
+                            <div className="flex flex-col gap-1">
+                                <span className={`w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${theme.bg} ${theme.text}`}>
+                                    {item.category}
+                                </span>
+                                <h3 className="font-bold text-slate-800 leading-snug">{item.scenario}</h3>
+                            </div>
+                            {isAdmin && (
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={(e) => { e.stopPropagation(); setEditingItem(item); setForm(item); setShowForm(true); }} className="p-1.5 hover:bg-slate-100 rounded text-slate-400"><Icons.Edit /></button>
+                                    <button onClick={(e) => handleDelete(item.id, e)} className="p-1.5 hover:bg-red-50 rounded text-red-400"><Icons.Trash /></button>
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-slate-500 text-sm line-clamp-4 leading-relaxed mb-4 pl-2 whitespace-pre-wrap">{item.message}</p>
+                        <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase pl-2">
+                            <span>Tap to copy</span>
+                            <Icons.Copy className="w-3 h-3" />
+                        </div>
+                    </div>
+                );
+            };
 
             return (
-                <div className="min-h-screen flex flex-col">
-                    <header className="fixed top-0 w-full z-50 glass">
-                        <div className="max-w-7xl mx-auto px-4 md:px-8 py-4 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                                    <Icons.Globe className="w-6 h-6" />
+                <div className="min-h-screen flex flex-col bg-[#f8fafc]">
+                    <header className="fixed top-0 w-full z-50 glass px-4 md:px-8 py-4">
+                        <div className="max-w-7xl mx-auto flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg text-white shadow-lg shadow-indigo-100 ${isLocalMode ? 'bg-slate-600' : 'bg-indigo-600'}`}>
+                                    {isLocalMode ? <Icons.HardDrive /> : <Icons.Zap />}
                                 </div>
-                                <div>
-                                    <h1 className="font-extrabold text-slate-900 tracking-tight leading-none">Response Hub</h1>
-                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Live Sync Mode</p>
+                                <div className="hidden sm:block">
+                                    <h1 className="font-bold text-slate-900 leading-none">Response Hub</h1>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                        {isLocalMode ? "Local Storage Mode" : (user ? (isAdmin ? 'Admin View' : 'Live Sync On') : 'Connecting...')}
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex gap-2">
                                 {isAdmin ? (
                                     <>
-                                        <button onClick={() => fileInput.current.click()} className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-all" title="Import Excel">
-                                            <Icons.Upload />
-                                        </button>
-                                        <button 
-                                            onClick={() => { setShowForm(!showForm); setEditingItem(null); setForm({category:"",scenario:"",message:"",section:""}); }}
-                                            className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-black transition-all"
-                                        >
+                                        <button onClick={() => fileInput.current.click()} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors" title="Import Excel"><Icons.Upload /></button>
+                                        <button onClick={() => { setShowForm(!showForm); setEditingItem(null); }} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-black transition-all">
                                             {showForm ? <Icons.X /> : <Icons.Plus />}
-                                            <span className="hidden sm:inline">{showForm ? "Close" : "New Entry"}</span>
+                                            <span className="hidden xs:inline">{showForm ? "Cancel" : "New Entry"}</span>
                                         </button>
-                                        <button onClick={toggleAdmin} className="p-2.5 text-indigo-600 bg-indigo-50 rounded-xl"><Icons.Unlock /></button>
+                                        <button onClick={toggleAdmin} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Unlock /></button>
                                     </>
                                 ) : (
-                                    <button onClick={toggleAdmin} className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"><Icons.Lock /></button>
+                                    <button onClick={toggleAdmin} className="px-4 py-2 text-slate-400 hover:text-slate-600 rounded-lg flex items-center gap-2 text-xs font-bold transition-colors">
+                                        <Icons.Lock /> Admin Login
+                                    </button>
                                 )}
-                                <input type="file" ref={fileInput} onChange={handleBulkImport} className="hidden" accept=".xlsx,.xls" />
+                                <input type="file" ref={fileInput} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
                             </div>
                         </div>
                     </header>
 
-                    <main className="max-w-7xl mx-auto w-full px-4 md:px-8 pt-28 pb-20 flex-grow">
-                        <div className="mb-10 space-y-6">
-                            <div className="relative">
-                                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300"><Icons.Search /></div>
-                                <input 
-                                    type="text" 
-                                    placeholder="Search global library..." 
-                                    className="w-full pl-14 pr-6 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-indigo-50 transition-all text-lg shadow-sm"
-                                    value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                    <main className="max-w-7xl mx-auto w-full px-4 md:px-8 pt-24 pb-12 flex-grow">
+                        <div className="mb-8 space-y-6">
+                            <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 scrollbar-hide">
                                 {categories.map(cat => (
                                     <button 
                                         key={cat.name} 
                                         onClick={() => setActiveCategory(cat.name)}
-                                        className={`px-6 py-2 rounded-xl text-xs font-black transition-all border whitespace-nowrap uppercase tracking-widest ${activeCategory === cat.name ? `${cat.theme.bg} ${cat.theme.text} ${cat.theme.border}` : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}
+                                        className={`px-5 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${activeCategory === cat.name ? `${cat.theme.bg} ${cat.theme.text} ${cat.theme.border}` : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}
                                     >
                                         {cat.name}
                                     </button>
                                 ))}
                             </div>
+                            <div className="relative group">
+                                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300"><Icons.Search /></div>
+                                <input 
+                                    type="text" 
+                                    placeholder="Search library..." 
+                                    className="w-full pl-14 pr-10 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-indigo-50 transition-all text-lg shadow-sm"
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                />
+                                {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><Icons.X /></button>}
+                            </div>
                         </div>
 
                         {showForm && isAdmin && (
-                            <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 mb-12 shadow-2xl animate-up">
-                                <h2 className="text-xl font-bold mb-6">{editingItem ? "Edit Global Entry" : "Add to Live Library"}</h2>
-                                <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Category (Sheet Name)</label>
-                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 outline-none" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
+                            <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 mb-8 shadow-xl animate-in">
+                                <h2 className="text-xl font-bold mb-6">{editingItem ? "Edit Response" : "New Response"}</h2>
+                                <form onSubmit={handleSave} className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Category" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Section (Optional)" value={form.section} onChange={e => setForm({...form, section: e.target.value})} />
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Scenario Title" value={form.scenario} onChange={e => setForm({...form, scenario: e.target.value})} required />
                                     </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Section</label>
-                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 outline-none" value={form.section} onChange={e => setForm({...form, section: e.target.value})} required />
-                                    </div>
-                                    <div className="md:col-span-2 space-y-1">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Scenario Title</label>
-                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 outline-none" value={form.scenario} onChange={e => setForm({...form, scenario: e.target.value})} required />
-                                    </div>
-                                    <div className="md:col-span-2 space-y-1">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Message Content</label>
-                                        <textarea className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 h-40 resize-none outline-none" value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
-                                    </div>
-                                    <div className="md:col-span-2 flex justify-end gap-3 pt-4">
-                                        <button type="button" onClick={() => setShowForm(false)} className="px-8 py-3 text-slate-400 font-bold">Cancel</button>
-                                        <button type="submit" className="bg-indigo-600 text-white px-10 py-3 rounded-xl font-bold">Sync Everywhere</button>
+                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 h-32 resize-none" placeholder="Message content..." value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
+                                    <div className="flex justify-end gap-3">
+                                        <button type="button" onClick={() => setShowForm(false)} className="px-6 py-3 text-slate-400 font-bold">Cancel</button>
+                                        <button type="submit" className={`text-white px-8 py-3 rounded-xl font-bold shadow-lg ${isLocalMode ? 'bg-slate-600' : 'bg-indigo-600'}`}>{isLocalMode ? "Save Locally" : "Save to Cloud"}</button>
                                     </div>
                                 </form>
                             </div>
                         )}
 
                         {loading ? (
-                            <div className="py-40 text-center">
+                            <div className="py-32 text-center">
                                 <div className="loader mx-auto mb-6"></div>
-                                <p className="text-slate-400 font-black text-[10px] tracking-[0.2em] uppercase">Establishing Global Connection</p>
+                                <p className="text-slate-400 font-bold text-xs tracking-widest uppercase animate-pulse">Establishing Connection...</p>
                             </div>
                         ) : (
-                            <div className="space-y-16">
-                                {groupedData.map(([section, items]) => (
-                                    <div key={section} className="animate-up">
-                                        <div className="flex items-center gap-4 mb-6">
-                                            <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] whitespace-nowrap">{section}</h2>
+                            <div className="space-y-10">
+                                {/* Ungrouped Items */}
+                                {sections.noSection.length > 0 && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in">
+                                        {sections.noSection.map(item => <RenderCard key={item.id} item={item} />)}
+                                    </div>
+                                )}
+
+                                {/* Grouped Sections */}
+                                {sections.sortedKeys.map(key => (
+                                    <div key={key} className="space-y-4 animate-in">
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{key}</span>
                                             <div className="h-px bg-slate-200 w-full"></div>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            {items.map(item => {
-                                                const theme = categories.find(c => c.name === item.category)?.theme || THEMES[0];
-                                                return (
-                                                    <div 
-                                                        key={item.id}
-                                                        onClick={() => { navigator.clipboard.writeText(item.message); showToast("Copied!"); }}
-                                                        className="group bg-white rounded-2xl p-5 border border-slate-200 shadow-card hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer flex flex-col h-full"
-                                                    >
-                                                        <div className="flex justify-between items-start mb-4">
-                                                            <div className="space-y-1.5">
-                                                                <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${theme.bg} ${theme.text}`}>
-                                                                    {item.category}
-                                                                </span>
-                                                                <h3 className="text-slate-900 font-bold leading-tight">{item.scenario}</h3>
-                                                            </div>
-                                                            {isAdmin && (
-                                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <button onClick={(e) => { e.stopPropagation(); setEditingItem(item); setForm(item); setShowForm(true); }} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"><Icons.Edit /></button>
-                                                                    <button onClick={(e) => handleDelete(item.id, e)} className="p-1.5 hover:bg-rose-50 rounded-lg text-rose-400"><Icons.Trash /></button>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <p className="text-slate-500 text-sm line-clamp-6 leading-relaxed flex-grow whitespace-pre-wrap">{item.message}</p>
-                                                        <div className="mt-5 pt-3 border-t border-slate-50 flex items-center justify-between text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-                                                            <span>Tap to Copy</span>
-                                                            <Icons.Copy className="w-3.5 h-3.5" />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                            {sections.groups[key].map(item => <RenderCard key={item.id} item={item} />)}
                                         </div>
                                     </div>
                                 ))}
+
+                                {filtered.length === 0 && (
+                                    <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl">
+                                        <Icons.Cloud className="w-10 h-10 text-slate-300 mx-auto mb-4" />
+                                        <p className="text-slate-400 text-sm font-medium">Library is empty. Switch to Admin to add data.</p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </main>
 
                     {toast.show && (
-                        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-up">
-                            <div className="bg-slate-900 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3">
-                                <div className="text-emerald-400"><Icons.Check /></div>
-                                <span className="text-xs font-black uppercase tracking-widest">{toast.message}</span>
+                        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in">
+                            <div className={`px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 text-white ${toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900'}`}>
+                                <Icons.Check />
+                                <span className="text-xs font-bold uppercase tracking-wider">{toast.message}</span>
                             </div>
                         </div>
                     )}
+
+                    <footer className="py-8 text-center border-t border-slate-200">
+                        <div className="text-slate-400 text-xs font-medium flex items-center justify-center gap-2">
+                            <span>Created by Ali Abo Ali</span>
+                        </div>
+                    </footer>
                 </div>
             );
         };
@@ -421,3 +501,4 @@
     </script>
 </body>
 </html>
+
