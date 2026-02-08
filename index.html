@@ -67,6 +67,7 @@
             Shield: () => <Icon path={<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>} />,
             Heart: () => <Icon className="w-3 h-3 text-rose-500 fill-current" path={<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>} />,
             HardDrive: () => <Icon path={<><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></>} />,
+            AlertTriangle: () => <Icon path={<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />} />,
         };
 
         const THEMES = [
@@ -206,16 +207,44 @@
             };
 
             const handleDelete = async (id, e) => {
-                e.stopPropagation();
+                if (e) e.stopPropagation();
                 if (!isAdmin || !confirm("Delete?")) return;
-                if (isLocalMode) {
-                    const updated = data.filter(i => i.id !== id);
-                    setData(updated);
-                    localStorage.setItem('agent_helper_data', JSON.stringify(updated));
-                } else {
-                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
+                try {
+                    if (isLocalMode) {
+                        const updated = data.filter(i => i.id !== id);
+                        setData(updated);
+                        localStorage.setItem('agent_helper_data', JSON.stringify(updated));
+                    } else {
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
+                    }
+                    showToast("Deleted");
+                } catch (err) { showToast("Delete failed", "error"); }
+            };
+
+            const handleClearAll = async () => {
+                if (!isAdmin) return;
+                const confirm1 = confirm("⚠️ WARNING: This will permanently delete ALL data in the current database. This cannot be undone. Proceed?");
+                if (!confirm1) return;
+                const confirm2 = confirm("FINAL CONFIRMATION: Are you absolutely sure you want to clear the entire database?");
+                if (!confirm2) return;
+
+                setLoading(true);
+                try {
+                    if (isLocalMode) {
+                        setData([]);
+                        localStorage.removeItem('agent_helper_data');
+                    } else {
+                        const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                        const snapshot = await colRef.get();
+                        const batch = db.batch();
+                        snapshot.docs.forEach(doc => batch.delete(doc.ref));
+                        await batch.commit();
+                    }
+                    showToast("Database Cleared", "success");
+                } catch (err) {
+                    showToast("Clear failed", "error");
                 }
-                showToast("Deleted");
+                setLoading(false);
             };
 
             const handleImport = (e) => {
@@ -326,6 +355,7 @@
                             <div className="flex gap-2">
                                 {isAdmin && (
                                     <>
+                                        <button onClick={handleClearAll} className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Clear All Data"><Icons.Trash /></button>
                                         <button onClick={() => fileInput.current.click()} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg" title="Import Excel"><Icons.Upload /></button>
                                         <button onClick={() => setShowForm(!showForm)} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
                                             {showForm ? <Icons.X /> : <Icons.Plus />}
@@ -383,7 +413,13 @@
                         {loading && data.length === 0 ? (
                             <div className="py-32 text-center">
                                 <div className="loader mx-auto mb-4"></div>
-                                <p className="text-slate-400 font-bold text-[10px] tracking-widest uppercase">Loading Database...</p>
+                                <p className="text-slate-400 font-bold text-[10px] tracking-widest uppercase">Syncing Database...</p>
+                            </div>
+                        ) : data.length === 0 ? (
+                            <div className="py-32 text-center border-2 border-dashed border-slate-200 rounded-3xl">
+                                <div className="mx-auto w-12 h-12 text-slate-300 mb-4"><Icons.AlertTriangle /></div>
+                                <h3 className="text-slate-900 font-bold">Database Empty</h3>
+                                <p className="text-slate-400 text-sm mt-1">Start adding responses or import an Excel file.</p>
                             </div>
                         ) : (
                             <div className="space-y-10">
@@ -410,7 +446,7 @@
 
                     <footer className="py-12 border-t border-slate-100 text-center">
                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 flex items-center justify-center gap-2">
-                            Created with by Ali Abo Ali
+                            Created by Ali Abo Ali
                         </p>
                     </footer>
 
