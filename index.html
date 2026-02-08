@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Response Hub - Online Sync</title>
+    <title>Response Hub</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -67,19 +67,23 @@
             Cloud: () => <Icon path={<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>} />,
             Copy: () => <Icon path={<><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>} />,
             Save: () => <Icon path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>} />,
-            Heart: () => <Icon className="w-3 h-3 text-rose-400 fill-current" path={<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>} />
+            Heart: () => <Icon className="w-3 h-3 text-rose-400 fill-current" path={<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>} />,
+            HardDrive: () => <Icon path={<><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></>} />
         };
 
         // --- Firebase Config Check & Init ---
-        let app, auth, db, appId;
+        let app, auth, db, appId, isCloudAvailable = false;
         try {
-            const config = JSON.parse(__firebase_config);
-            app = firebase.initializeApp(config);
-            auth = firebase.auth();
-            db = firebase.firestore();
-            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                const config = JSON.parse(__firebase_config);
+                app = firebase.initializeApp(config);
+                auth = firebase.auth();
+                db = firebase.firestore();
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+                isCloudAvailable = true;
+            }
         } catch (e) {
-            console.error("Firebase Init Failed:", e);
+            console.log("Running in Local Mode (Cloud config missing or invalid)");
         }
 
         // --- Constants ---
@@ -95,6 +99,7 @@
         const App = () => {
             const [user, setUser] = useState(null);
             const [isAdmin, setIsAdmin] = useState(false);
+            const [isLocalMode, setIsLocalMode] = useState(!isCloudAvailable);
             const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
             const [searchTerm, setSearchTerm] = useState("");
@@ -106,9 +111,16 @@
             
             const fileInput = useRef(null);
 
-            // 1. Auth Init
+            // 1. Auth Init (Only if cloud available)
             useEffect(() => {
-                if (!auth) { setLoading(false); return; }
+                if (!isCloudAvailable) {
+                    setLoading(false);
+                    // Load local data on init
+                    const localData = localStorage.getItem('agent_helper_data');
+                    if(localData) setData(JSON.parse(localData));
+                    return;
+                }
+
                 const initAuth = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -116,7 +128,11 @@
                         } else {
                             await auth.signInAnonymously();
                         }
-                    } catch (e) { console.error("Auth error", e); }
+                    } catch (e) { 
+                        console.error("Auth error, switching to local", e);
+                        setIsLocalMode(true);
+                        setLoading(false);
+                    }
                 };
                 initAuth();
                 return auth.onAuthStateChanged(setUser);
@@ -124,21 +140,25 @@
 
             // 2. Data Sync
             useEffect(() => {
+                if (isLocalMode) return;
                 if (!user || !db) return;
                 
                 // Using STRICT path structure required by environment
-                // artifacts/{appId}/public/data/responses
                 const unsubscribe = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses')
                     .onSnapshot((snapshot) => {
                         const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                         setData(items);
                         setLoading(false);
                     }, (error) => {
-                        console.error("Sync error", error);
+                        console.error("Sync error, falling back to local", error);
+                        setIsLocalMode(true);
                         setLoading(false);
+                        // Fallback load
+                        const localData = localStorage.getItem('agent_helper_data');
+                        if(localData) setData(JSON.parse(localData));
                     });
                 return () => unsubscribe();
-            }, [user]);
+            }, [user, isLocalMode]);
 
             // Computed
             const categories = useMemo(() => {
@@ -171,24 +191,42 @@
                 }
             };
 
+            const saveLocally = (newData) => {
+                setData(newData);
+                localStorage.setItem('agent_helper_data', JSON.stringify(newData));
+            };
+
             const handleSave = async (e) => {
                 e.preventDefault();
-                if (!user || !isAdmin || !db) return;
+                if (!isAdmin) return;
                 
-                const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
                 try {
-                    if (editingItem) {
-                        await colRef.doc(editingItem.id).update({
-                            ...form,
-                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                        showToast("Updated online");
+                    if (isLocalMode) {
+                        let updated;
+                        if (editingItem) {
+                            updated = data.map(i => i.id === editingItem.id ? { ...i, ...form } : i);
+                            showToast("Updated locally");
+                        } else {
+                            updated = [{ ...form, id: Date.now().toString() }, ...data];
+                            showToast("Saved locally");
+                        }
+                        saveLocally(updated);
                     } else {
-                        await colRef.add({
-                            ...form,
-                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                        showToast("Saved to cloud");
+                        // Cloud Mode
+                        const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                        if (editingItem) {
+                            await colRef.doc(editingItem.id).update({
+                                ...form,
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                            showToast("Updated online");
+                        } else {
+                            await colRef.add({
+                                ...form,
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                            showToast("Saved to cloud");
+                        }
                     }
                     setShowForm(false);
                     setEditingItem(null);
@@ -202,10 +240,17 @@
             const handleDelete = async (id, e) => {
                 e.stopPropagation();
                 if (!isAdmin || !confirm("Delete this permanently?")) return;
-                try {
-                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
-                    showToast("Deleted");
-                } catch (err) { showToast("Delete failed", "error"); }
+                
+                if (isLocalMode) {
+                    const updated = data.filter(i => i.id !== id);
+                    saveLocally(updated);
+                    showToast("Deleted locally");
+                } else {
+                    try {
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
+                        showToast("Deleted from cloud");
+                    } catch (err) { showToast("Delete failed", "error"); }
+                }
             };
 
             const handleImport = (e) => {
@@ -215,26 +260,47 @@
                 reader.onload = async (evt) => {
                     try {
                         const wb = XLSX.read(evt.target.result, { type: 'binary' });
-                        const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                        let newItems = [];
                         let count = 0;
+                        
+                        // If Cloud
+                        const colRef = !isLocalMode ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses') : null;
+
                         for (const sheet of wb.SheetNames) {
                             const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
                             for (const row of rows) {
                                 const keys = Object.keys(row);
                                 const scenario = row[keys.find(k => k.toLowerCase().includes('scenario'))] || "Untitled";
                                 const message = row[keys.find(k => k.toLowerCase().includes('message'))] || "";
+                                
                                 if (message) {
-                                    await colRef.add({
+                                    const entry = {
                                         category: sheet,
                                         scenario: String(scenario),
                                         message: String(message),
                                         section: String(row.Section || ""),
-                                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                                    });
+                                        createdAt: new Date().toISOString()
+                                    };
+
+                                    if (isLocalMode) {
+                                        entry.id = `local-${Date.now()}-${count}`;
+                                        newItems.push(entry);
+                                    } else {
+                                        // Async cloud add
+                                        colRef.add({
+                                            ...entry,
+                                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                                        });
+                                    }
                                     count++;
                                 }
                             }
                         }
+                        
+                        if (isLocalMode) {
+                            saveLocally([...newItems, ...data]);
+                        }
+                        
                         showToast(`Imported ${count} items`);
                     } catch (err) { showToast("Import failed", "error"); }
                 };
@@ -295,20 +361,18 @@
                 );
             };
 
-            if (!auth) return <div className="p-10 text-center text-red-500 font-bold">Error: Firebase Configuration Missing</div>;
-
             return (
                 <div className="min-h-screen flex flex-col bg-[#f8fafc]">
                     <header className="fixed top-0 w-full z-50 glass px-4 md:px-8 py-4">
                         <div className="max-w-7xl mx-auto flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="bg-indigo-600 p-2 rounded-lg text-white shadow-lg shadow-indigo-100">
-                                    <Icons.Zap />
+                                <div className={`p-2 rounded-lg text-white shadow-lg shadow-indigo-100 ${isLocalMode ? 'bg-slate-600' : 'bg-indigo-600'}`}>
+                                    {isLocalMode ? <Icons.HardDrive /> : <Icons.Zap />}
                                 </div>
                                 <div className="hidden sm:block">
                                     <h1 className="font-bold text-slate-900 leading-none">Response Hub</h1>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                                        {user ? (isAdmin ? 'Admin View' : 'Live Sync On') : 'Connecting...'}
+                                        {isLocalMode ? "Local Storage Mode" : (user ? (isAdmin ? 'Admin View' : 'Live Sync On') : 'Connecting...')}
                                     </p>
                                 </div>
                             </div>
@@ -371,7 +435,7 @@
                                     <textarea className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 h-32 resize-none" placeholder="Message content..." value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
                                     <div className="flex justify-end gap-3">
                                         <button type="button" onClick={() => setShowForm(false)} className="px-6 py-3 text-slate-400 font-bold">Cancel</button>
-                                        <button type="submit" className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-indigo-100">Save to Cloud</button>
+                                        <button type="submit" className={`text-white px-8 py-3 rounded-xl font-bold shadow-lg ${isLocalMode ? 'bg-slate-600' : 'bg-indigo-600'}`}>{isLocalMode ? "Save Locally" : "Save to Cloud"}</button>
                                     </div>
                                 </form>
                             </div>
@@ -380,7 +444,7 @@
                         {loading ? (
                             <div className="py-32 text-center">
                                 <div className="loader mx-auto mb-6"></div>
-                                <p className="text-slate-400 font-bold text-xs tracking-widest uppercase animate-pulse">Establishing Cloud Link...</p>
+                                <p className="text-slate-400 font-bold text-xs tracking-widest uppercase animate-pulse">Establishing Connection...</p>
                             </div>
                         ) : (
                             <div className="space-y-10">
