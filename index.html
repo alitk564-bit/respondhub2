@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Response Hub</title>
+    <title>Response Hub - Live Sync</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -47,7 +47,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- ICONS (Inline for stability) ---
+        // --- ICONS ---
         const Icon = ({ path, className = "w-5 h-5" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 {path}
@@ -67,26 +67,32 @@
             Cloud: () => <Icon path={<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>} />,
             Copy: () => <Icon path={<><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>} />,
             Save: () => <Icon path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>} />,
-            Heart: () => <Icon className="w-3 h-3 text-rose-400 fill-current" path={<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>} />,
             HardDrive: () => <Icon path={<><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></>} />
         };
 
-        // --- Firebase Config Check & Init ---
-        let app, auth, db, appId, isCloudAvailable = false;
+        // --- Firebase Configuration Logic ---
+        const userProvidedConfig = {
+            apiKey: "AIzaSyCkWkxeidV9x8BvNGD-jcmL44ha4vHHlf8",
+            authDomain: "respondhub-c4641.firebaseapp.com",
+            projectId: "respondhub-c4641",
+            storageBucket: "respondhub-c4641.firebasestorage.app",
+            messagingSenderId: "682357623707",
+            appId: "1:682357623707:web:e256f3ab48219bbfdfaf3e",
+            measurementId: "G-TLKTF1JK6N"
+        };
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userProvidedConfig;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'respondhub-c4641';
+        
+        let app, auth, db;
         try {
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                const config = JSON.parse(__firebase_config);
-                app = firebase.initializeApp(config);
-                auth = firebase.auth();
-                db = firebase.firestore();
-                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
-                isCloudAvailable = true;
-            }
+            app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
         } catch (e) {
-            console.log("Running in Local Mode (Cloud config missing or invalid)");
+            console.error("Firebase init failed", e);
         }
 
-        // --- Constants ---
         const THEMES = [
             { id: 'blue', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', ring: 'ring-blue-500' },
             { id: 'violet', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', ring: 'ring-violet-500' },
@@ -99,7 +105,6 @@
         const App = () => {
             const [user, setUser] = useState(null);
             const [isAdmin, setIsAdmin] = useState(false);
-            const [isLocalMode, setIsLocalMode] = useState(!isCloudAvailable);
             const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
             const [searchTerm, setSearchTerm] = useState("");
@@ -111,16 +116,8 @@
             
             const fileInput = useRef(null);
 
-            // 1. Auth Init (Only if cloud available)
+            // Auth Logic
             useEffect(() => {
-                if (!isCloudAvailable) {
-                    setLoading(false);
-                    // Load local data on init
-                    const localData = localStorage.getItem('agent_helper_data');
-                    if(localData) setData(JSON.parse(localData));
-                    return;
-                }
-
                 const initAuth = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -128,49 +125,47 @@
                         } else {
                             await auth.signInAnonymously();
                         }
-                    } catch (e) { 
-                        console.error("Auth error, switching to local", e);
-                        setIsLocalMode(true);
+                    } catch (e) {
+                        console.error("Auth failed", e);
                         setLoading(false);
                     }
                 };
                 initAuth();
-                return auth.onAuthStateChanged(setUser);
+                const unsubscribe = auth.onAuthStateChanged(setUser);
+                return () => unsubscribe();
             }, []);
 
-            // 2. Data Sync
+            // Real-time Data Sync Logic
             useEffect(() => {
-                if (isLocalMode) return;
-                if (!user || !db) return;
-                
-                // Using STRICT path structure required by environment
-                const unsubscribe = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses')
-                    .onSnapshot((snapshot) => {
-                        const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        setData(items);
-                        setLoading(false);
-                    }, (error) => {
-                        console.error("Sync error, falling back to local", error);
-                        setIsLocalMode(true);
-                        setLoading(false);
-                        // Fallback load
-                        const localData = localStorage.getItem('agent_helper_data');
-                        if(localData) setData(JSON.parse(localData));
-                    });
-                return () => unsubscribe();
-            }, [user, isLocalMode]);
+                if (!user) return;
 
-            // Computed
+                // Path construction according to strict environment rules
+                const collectionRef = db.collection('artifacts')
+                    .doc(appId)
+                    .collection('public')
+                    .doc('data')
+                    .collection('responses');
+
+                const unsubscribe = collectionRef.onSnapshot((snapshot) => {
+                    const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    // Sort items by creation time locally (newest first)
+                    const sorted = items.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                    setData(sorted);
+                    setLoading(false);
+                }, (error) => {
+                    console.error("Firestore sync error:", error);
+                    setLoading(false);
+                    showToast("Sync error. Please refresh.", "error");
+                });
+
+                return () => unsubscribe();
+            }, [user]);
+
             const categories = useMemo(() => {
                 const unique = ["All", ...new Set(data.map(d => d.category))];
                 return unique.map((name, i) => ({ name, theme: THEMES[i % THEMES.length] }));
             }, [data]);
 
-            const activeTheme = useMemo(() => {
-                return categories.find(c => c.name === activeCategory)?.theme || THEMES[0];
-            }, [categories, activeCategory]);
-
-            // Handlers
             const showToast = (msg, type = "success") => {
                 setToast({ show: true, message: msg, type });
                 setTimeout(() => setToast({ show: false, message: "", type: "success" }), 2500);
@@ -191,42 +186,25 @@
                 }
             };
 
-            const saveLocally = (newData) => {
-                setData(newData);
-                localStorage.setItem('agent_helper_data', JSON.stringify(newData));
-            };
-
             const handleSave = async (e) => {
                 e.preventDefault();
-                if (!isAdmin) return;
+                if (!isAdmin || !user) return;
                 
                 try {
-                    if (isLocalMode) {
-                        let updated;
-                        if (editingItem) {
-                            updated = data.map(i => i.id === editingItem.id ? { ...i, ...form } : i);
-                            showToast("Updated locally");
-                        } else {
-                            updated = [{ ...form, id: Date.now().toString() }, ...data];
-                            showToast("Saved locally");
-                        }
-                        saveLocally(updated);
+                    const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                    
+                    if (editingItem) {
+                        await colRef.doc(editingItem.id).update({
+                            ...form,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        showToast("Updated across all users");
                     } else {
-                        // Cloud Mode
-                        const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
-                        if (editingItem) {
-                            await colRef.doc(editingItem.id).update({
-                                ...form,
-                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                            });
-                            showToast("Updated online");
-                        } else {
-                            await colRef.add({
-                                ...form,
-                                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                            });
-                            showToast("Saved to cloud");
-                        }
+                        await colRef.add({
+                            ...form,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        showToast("Synced to all users");
                     }
                     setShowForm(false);
                     setEditingItem(null);
@@ -239,17 +217,13 @@
 
             const handleDelete = async (id, e) => {
                 e.stopPropagation();
-                if (!isAdmin || !confirm("Delete this permanently?")) return;
+                if (!isAdmin || !confirm("Delete this permanently for everyone?")) return;
                 
-                if (isLocalMode) {
-                    const updated = data.filter(i => i.id !== id);
-                    saveLocally(updated);
-                    showToast("Deleted locally");
-                } else {
-                    try {
-                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
-                        showToast("Deleted from cloud");
-                    } catch (err) { showToast("Delete failed", "error"); }
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
+                    showToast("Removed from cloud");
+                } catch (err) { 
+                    showToast("Delete failed", "error"); 
                 }
             };
 
@@ -260,11 +234,8 @@
                 reader.onload = async (evt) => {
                     try {
                         const wb = XLSX.read(evt.target.result, { type: 'binary' });
-                        let newItems = [];
+                        const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
                         let count = 0;
-                        
-                        // If Cloud
-                        const colRef = !isLocalMode ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses') : null;
 
                         for (const sheet of wb.SheetNames) {
                             const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
@@ -274,34 +245,18 @@
                                 const message = row[keys.find(k => k.toLowerCase().includes('message'))] || "";
                                 
                                 if (message) {
-                                    const entry = {
+                                    await colRef.add({
                                         category: sheet,
                                         scenario: String(scenario),
                                         message: String(message),
                                         section: String(row.Section || ""),
-                                        createdAt: new Date().toISOString()
-                                    };
-
-                                    if (isLocalMode) {
-                                        entry.id = `local-${Date.now()}-${count}`;
-                                        newItems.push(entry);
-                                    } else {
-                                        // Async cloud add
-                                        colRef.add({
-                                            ...entry,
-                                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                                        });
-                                    }
+                                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                                    });
                                     count++;
                                 }
                             }
                         }
-                        
-                        if (isLocalMode) {
-                            saveLocally([...newItems, ...data]);
-                        }
-                        
-                        showToast(`Imported ${count} items`);
+                        showToast(`Imported ${count} items live!`);
                     } catch (err) { showToast("Import failed", "error"); }
                 };
                 reader.readAsBinaryString(file);
@@ -314,7 +269,6 @@
                 return matchesSearch && matchesCat;
             });
 
-            // Grouping Logic
             const sections = useMemo(() => {
                 const groups = {};
                 const noSection = [];
@@ -329,12 +283,14 @@
                 return { groups, sortedKeys: Object.keys(groups).sort(), noSection };
             }, [filtered]);
 
-            // Rendering Cards
             const RenderCard = ({ item }) => {
                 const theme = categories.find(c => c.name === item.category)?.theme || THEMES[0];
                 return (
                     <div 
-                        onClick={() => { navigator.clipboard.writeText(item.message); showToast("Copied!"); }}
+                        onClick={() => { 
+                            navigator.clipboard.writeText(item.message); 
+                            showToast("Copied to clipboard!"); 
+                        }}
                         className="group bg-white p-5 rounded-2xl shadow-card border border-transparent hover:border-slate-200 hover:shadow-lg transition-all cursor-pointer relative flex flex-col h-full overflow-hidden"
                     >
                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${theme.bg.replace('bg-', 'bg-')}-500`}></div>
@@ -366,13 +322,13 @@
                     <header className="fixed top-0 w-full z-50 glass px-4 md:px-8 py-4">
                         <div className="max-w-7xl mx-auto flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg text-white shadow-lg shadow-indigo-100 ${isLocalMode ? 'bg-slate-600' : 'bg-indigo-600'}`}>
-                                    {isLocalMode ? <Icons.HardDrive /> : <Icons.Zap />}
+                                <div className="p-2 rounded-lg text-white shadow-lg shadow-indigo-100 bg-indigo-600">
+                                    <Icons.Zap />
                                 </div>
                                 <div className="hidden sm:block">
                                     <h1 className="font-bold text-slate-900 leading-none">Response Hub</h1>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                                        {isLocalMode ? "Local Storage Mode" : (user ? (isAdmin ? 'Admin View' : 'Live Sync On') : 'Connecting...')}
+                                        {user ? (isAdmin ? 'Admin View - Live Sync' : 'Real-time Connection Active') : 'Connecting to Firebase...'}
                                     </p>
                                 </div>
                             </div>
@@ -381,7 +337,7 @@
                                 {isAdmin ? (
                                     <>
                                         <button onClick={() => fileInput.current.click()} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors" title="Import Excel"><Icons.Upload /></button>
-                                        <button onClick={() => { setShowForm(!showForm); setEditingItem(null); }} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-black transition-all">
+                                        <button onClick={() => { setShowForm(!showForm); setEditingItem(null); setForm({ category: "", scenario: "", message: "", section: "" }); }} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-black transition-all">
                                             {showForm ? <Icons.X /> : <Icons.Plus />}
                                             <span className="hidden xs:inline">{showForm ? "Cancel" : "New Entry"}</span>
                                         </button>
@@ -414,7 +370,7 @@
                                 <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300"><Icons.Search /></div>
                                 <input 
                                     type="text" 
-                                    placeholder="Search library..." 
+                                    placeholder="Search synced library..." 
                                     className="w-full pl-14 pr-10 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-indigo-50 transition-all text-lg shadow-sm"
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
@@ -425,7 +381,7 @@
 
                         {showForm && isAdmin && (
                             <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 mb-8 shadow-xl animate-in">
-                                <h2 className="text-xl font-bold mb-6">{editingItem ? "Edit Response" : "New Response"}</h2>
+                                <h2 className="text-xl font-bold mb-6">{editingItem ? "Edit Global Response" : "New Global Response"}</h2>
                                 <form onSubmit={handleSave} className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Category" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
@@ -435,7 +391,7 @@
                                     <textarea className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 h-32 resize-none" placeholder="Message content..." value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
                                     <div className="flex justify-end gap-3">
                                         <button type="button" onClick={() => setShowForm(false)} className="px-6 py-3 text-slate-400 font-bold">Cancel</button>
-                                        <button type="submit" className={`text-white px-8 py-3 rounded-xl font-bold shadow-lg ${isLocalMode ? 'bg-slate-600' : 'bg-indigo-600'}`}>{isLocalMode ? "Save Locally" : "Save to Cloud"}</button>
+                                        <button type="submit" className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-colors">Sync for All Users</button>
                                     </div>
                                 </form>
                             </div>
@@ -444,18 +400,16 @@
                         {loading ? (
                             <div className="py-32 text-center">
                                 <div className="loader mx-auto mb-6"></div>
-                                <p className="text-slate-400 font-bold text-xs tracking-widest uppercase animate-pulse">Establishing Connection...</p>
+                                <p className="text-slate-400 font-bold text-xs tracking-widest uppercase animate-pulse">Syncing Library...</p>
                             </div>
                         ) : (
                             <div className="space-y-10">
-                                {/* Ungrouped Items */}
                                 {sections.noSection.length > 0 && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in">
                                         {sections.noSection.map(item => <RenderCard key={item.id} item={item} />)}
                                     </div>
                                 )}
 
-                                {/* Grouped Sections */}
                                 {sections.sortedKeys.map(key => (
                                     <div key={key} className="space-y-4 animate-in">
                                         <div className="flex items-center gap-4">
@@ -471,7 +425,7 @@
                                 {filtered.length === 0 && (
                                     <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl">
                                         <Icons.Cloud className="w-10 h-10 text-slate-300 mx-auto mb-4" />
-                                        <p className="text-slate-400 text-sm font-medium">Library is empty. Switch to Admin to add data.</p>
+                                        <p className="text-slate-400 text-sm font-medium">No responses found. Changes will appear live once added.</p>
                                     </div>
                                 )}
                             </div>
@@ -488,8 +442,8 @@
                     )}
 
                     <footer className="py-8 text-center border-t border-slate-200">
-                        <div className="text-slate-400 text-xs font-medium flex items-center justify-center gap-2">
-                            <span>Created by Ali Abo Ali</span>
+                        <div className="text-slate-400 text-xs font-medium">
+                            Created by Ali Abo Ali • Live Sync Enabled
                         </div>
                     </footer>
                 </div>
@@ -501,4 +455,3 @@
     </script>
 </body>
 </html>
-
