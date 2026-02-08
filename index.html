@@ -6,14 +6,17 @@
     <title>Response Hub | Admin</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use specific versioned Firebase compat scripts for stability -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
+    <!-- SheetJS for Excel Support -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
@@ -29,36 +32,30 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- Firebase Initialization ---
-        const getFirebase = () => {
-            try {
-                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                    const config = JSON.parse(__firebase_config);
-                    if (!firebase.apps.length) {
-                        const app = firebase.initializeApp(config);
-                        return {
-                            auth: firebase.auth(app),
-                            db: firebase.firestore(app),
-                            appId: typeof __app_id !== 'undefined' ? __app_id : 'global-response-hub'
-                        };
-                    }
-                    return {
-                        auth: firebase.auth(),
-                        db: firebase.firestore(),
-                        appId: typeof __app_id !== 'undefined' ? __app_id : 'global-response-hub'
-                    };
-                }
-            } catch (e) { console.error("Firebase Init Error:", e); }
-            return null;
-        };
+        // --- Firebase Constants ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'global-response-hub';
+        let db, auth;
 
-        const fb = getFirebase();
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                const config = JSON.parse(__firebase_config);
+                if (!firebase.apps.length) {
+                    const app = firebase.initializeApp(config);
+                    db = firebase.firestore(app);
+                    auth = firebase.auth(app);
+                } else {
+                    db = firebase.firestore();
+                    auth = firebase.auth();
+                }
+            }
+        } catch (e) { console.error("Firebase Init Error:", e); }
 
         const Icons = {
             Search: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>,
-            Plus: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>,
+            Plus: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>,
             Trash: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>,
             Lock: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>,
+            Upload: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>,
             Heart: () => <svg className="w-3 h-3 fill-rose-500" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
         };
 
@@ -68,48 +65,58 @@
             const [isAuthenticated, setIsAuthenticated] = useState(false);
             const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
+            const [isSaving, setIsSaving] = useState(false);
             const [searchTerm, setSearchTerm] = useState("");
             const [password, setPassword] = useState("");
             const [showForm, setShowForm] = useState(false);
-            const [form, setForm] = useState({ category: "", scenario: "", message: "", section: "" });
+            const [form, setForm] = useState({ category: "", scenario: "", message: "" });
             const [toast, setToast] = useState(null);
+            
+            const fileInputRef = useRef(null);
 
             const showToast = (msg) => {
                 setToast(msg);
                 setTimeout(() => setToast(null), 3000);
             };
 
-            // Auth Setup
+            // Authentication Lifecycle
             useEffect(() => {
-                if (!fb) {
+                if (!auth) {
                     setLoading(false);
                     return;
                 }
-                const init = async () => {
-                    if (typeof __initial_auth_token !== 'undefined') {
-                        await fb.auth.signInWithCustomToken(__initial_auth_token);
-                    } else {
-                        await fb.auth.signInAnonymously();
-                    }
+
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await auth.signInWithCustomToken(__initial_auth_token);
+                        } else {
+                            await auth.signInAnonymously();
+                        }
+                    } catch (e) { console.error("Auth failed:", e); }
                 };
-                init();
-                return fb.auth.onAuthStateChanged(u => setUser(u));
+
+                initAuth();
+                const unsubscribe = auth.onAuthStateChanged(u => {
+                    setUser(u);
+                    if (!u) setLoading(false);
+                });
+                return () => unsubscribe();
             }, []);
 
-            // Data Sync (Global)
+            // Real-time Database Listener
             useEffect(() => {
-                if (!isAuthenticated || !fb?.db || !user) return;
+                if (!isAuthenticated || !db || !user) return;
                 
-                // Path strictly follows Rule 1 for persistent shared data
-                const colRef = fb.db.collection('artifacts').doc(fb.appId).collection('public').doc('data').collection('responses');
+                setLoading(true);
+                const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
                 
                 const unsubscribe = colRef.onSnapshot(snapshot => {
                     const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     setData(items);
                     setLoading(false);
                 }, (err) => {
-                    console.error("Sync Error:", err);
-                    showToast("Sync Error");
+                    console.error("Snapshot Error:", err);
                     setLoading(false);
                 });
 
@@ -132,38 +139,108 @@
                 }
             };
 
-            const handleSave = async (e) => {
-                e.preventDefault();
-                if (!isAdmin || !fb?.db) return;
-                
-                try {
-                    const colRef = fb.db.collection('artifacts').doc(fb.appId).collection('public').doc('data').collection('responses');
-                    await colRef.add({
-                        ...form,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                        author: user.uid
-                    });
-                    setForm({ category: "", scenario: "", message: "", section: "" });
-                    setShowForm(false);
-                    showToast("Saved to Cloud");
-                } catch (e) {
-                    showToast("Cloud Save Failed");
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file || !isAdmin) return;
+
+                const reader = new FileReader();
+
+                if (file.name.endsWith('.json')) {
+                    reader.onload = async (evt) => {
+                        try {
+                            const imported = JSON.parse(evt.target.result);
+                            if (Array.isArray(imported)) {
+                                await bulkUpload(imported);
+                            }
+                        } catch (err) { showToast("Invalid JSON file"); }
+                    };
+                    reader.readAsText(file);
+                } else {
+                    reader.onload = async (evt) => {
+                        try {
+                            const bstr = evt.target.result;
+                            const wb = XLSX.read(bstr, { type: 'binary' });
+                            let imported = [];
+                            wb.SheetNames.forEach((sheetName) => {
+                                const jsonData = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+                                const entries = jsonData.map(row => {
+                                    const keys = Object.keys(row);
+                                    const scenarioKey = keys.find(k => k.toLowerCase().includes('scenario')) || keys[0];
+                                    const messageKey = keys.find(k => k.toLowerCase().includes('message')) || keys[1];
+                                    return {
+                                        scenario: String(row[scenarioKey] || "Untitled"),
+                                        message: String(row[messageKey] || ""),
+                                        category: sheetName
+                                    };
+                                }).filter(i => i.message);
+                                imported = [...imported, ...entries];
+                            });
+                            await bulkUpload(imported);
+                        } catch (err) { 
+                            console.error(err);
+                            showToast("Excel Import Failed"); 
+                        }
+                    };
+                    reader.readAsBinaryString(file);
                 }
             };
 
-            const handleDeleteAll = async () => {
-                if (!isAdmin || !confirm("CRITICAL: Delete EVERYTHING for ALL users?")) return;
-                
+            const bulkUpload = async (items) => {
+                if (!items.length) return;
+                setIsSaving(true);
+                showToast(`Importing ${items.length} items...`);
                 try {
-                    const colRef = fb.db.collection('artifacts').doc(fb.appId).collection('public').doc('data').collection('responses');
-                    const snapshot = await colRef.get();
-                    const batch = fb.db.batch();
-                    snapshot.docs.forEach(doc => batch.delete(doc.ref));
+                    const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                    const batch = db.batch();
+                    
+                    items.forEach(item => {
+                        const newDocRef = colRef.doc();
+                        batch.set(newDocRef, {
+                            ...item,
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                            authorId: user.uid
+                        });
+                    });
+
                     await batch.commit();
-                    showToast("Database Cleared");
-                } catch (e) {
-                    showToast("Operation Failed");
+                    showToast(`Successfully imported ${items.length} items`);
+                } catch (err) {
+                    console.error(err);
+                    showToast("Bulk Upload Failed");
+                } finally {
+                    setIsSaving(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
                 }
+            };
+
+            const handleSave = async (e) => {
+                e.preventDefault();
+                if (!isAdmin || !db || isSaving) return;
+                
+                setIsSaving(true);
+                try {
+                    const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                    await colRef.add({
+                        ...form,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        authorId: user.uid
+                    });
+                    setForm({ category: "", scenario: "", message: "" });
+                    setShowForm(false);
+                    showToast("Success: Saved to Cloud");
+                } catch (err) {
+                    showToast("Error: Save Failed");
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleDelete = async (id) => {
+                if (!isAdmin || !confirm("Delete this entry?")) return;
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
+                    showToast("Deleted");
+                } catch (e) { showToast("Delete Failed"); }
             };
 
             const filteredData = useMemo(() => {
@@ -177,7 +254,7 @@
             if (!isAuthenticated) {
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-slate-900 p-6">
-                        <div className="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl space-y-6">
+                        <div className="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl space-y-6 animate-in fade-in zoom-in duration-300">
                             <div className="text-center">
                                 <h2 className="text-2xl font-extrabold text-slate-800">Welcome Back</h2>
                                 <p className="text-slate-400 text-sm mt-1">Response Library Access</p>
@@ -215,15 +292,24 @@
                             <div className="flex items-center gap-2">
                                 {isAdmin && (
                                     <>
-                                        <button onClick={handleDeleteAll} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl" title="Clear All Data">
-                                            <Icons.Trash />
+                                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx,.xls,.json" className="hidden" />
+                                        <button 
+                                            onClick={() => fileInputRef.current.click()}
+                                            className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
+                                            title="Import Excel/JSON"
+                                        >
+                                            <Icons.Upload />
                                         </button>
-                                        <button onClick={() => setShowForm(!showForm)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
-                                            <Icons.Plus /> {showForm ? "Close" : "New"}
+                                        <button 
+                                            disabled={isSaving}
+                                            onClick={() => setShowForm(!showForm)} 
+                                            className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 disabled:opacity-50"
+                                        >
+                                            <Icons.Plus /> {showForm ? "Close" : "New Entry"}
                                         </button>
                                     </>
                                 )}
-                                <button onClick={toggleAdmin} className={`p-2 rounded-xl transition-colors ${isAdmin ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}>
+                                <button onClick={toggleAdmin} className={`p-2.5 rounded-xl transition-colors ${isAdmin ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:bg-slate-100'}`}>
                                     <Icons.Lock />
                                 </button>
                             </div>
@@ -235,7 +321,7 @@
                             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
                             <input 
                                 type="text" 
-                                placeholder="Search the shared database..." 
+                                placeholder="Search by title, category, or keywords..." 
                                 className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm outline-none focus:ring-4 focus:ring-indigo-50 transition-all"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
@@ -243,49 +329,61 @@
                         </div>
 
                         {showForm && (
-                            <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl border border-slate-200 mb-10 shadow-sm space-y-4 animate-in">
+                            <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl border-2 border-indigo-100 mb-10 shadow-lg space-y-4 animate-in slide-in-from-top-4 duration-300">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <input placeholder="Category" className="p-3 bg-slate-50 rounded-xl outline-none" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
-                                    <input placeholder="Scenario" className="p-3 bg-slate-50 rounded-xl outline-none" value={form.scenario} onChange={e => setForm({...form, scenario: e.target.value})} required />
+                                    <input placeholder="Category (e.g. Greeting)" className="p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
+                                    <input placeholder="Scenario (e.g. Late Arrival)" className="p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" value={form.scenario} onChange={e => setForm({...form, scenario: e.target.value})} required />
                                 </div>
-                                <textarea placeholder="Message Content" className="w-full p-4 bg-slate-50 rounded-xl h-32 outline-none" value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
-                                <button className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl">Save to Global Database</button>
+                                <textarea placeholder="Paste message here..." className="w-full p-4 bg-slate-50 rounded-xl h-32 outline-none focus:ring-2 focus:ring-indigo-500" value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
+                                <button 
+                                    disabled={isSaving}
+                                    className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:bg-slate-300 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    {isSaving ? <><div className="loader h-4 w-4 border-white border-t-transparent"></div> Syncing...</> : "Publish to Database"}
+                                </button>
                             </form>
                         )}
 
                         {loading ? (
                             <div className="flex flex-col items-center py-20">
                                 <div className="loader"></div>
-                                <p className="text-xs font-bold text-slate-400 mt-4 uppercase tracking-widest">Updating Cloud...</p>
+                                <p className="text-xs font-bold text-slate-400 mt-4 uppercase tracking-widest">Connecting to Cloud...</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {filteredData.map(item => (
+                                {filteredData.length > 0 ? filteredData.map(item => (
                                     <div 
                                         key={item.id} 
-                                        onClick={() => { navigator.clipboard.writeText(item.message); showToast("Copied to Clipboard"); }}
-                                        className="group bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer relative"
+                                        onClick={() => { 
+                                            document.execCommand('copy') || navigator.clipboard.writeText(item.message); 
+                                            showToast("Copied to Clipboard"); 
+                                        }}
+                                        className="group bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer relative active:scale-[0.98] animate-in fade-in slide-in-from-bottom-2 duration-300"
                                     >
                                         <div className="flex justify-between items-start mb-3">
                                             <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-1 rounded-md">
-                                                {item.category}
+                                                {item.category || "General"}
                                             </span>
                                             {isAdmin && (
-                                                <button onClick={async (e) => {
-                                                    e.stopPropagation();
-                                                    if(confirm("Delete this entry?")) {
-                                                        await fb.db.collection('artifacts').doc(fb.appId).collection('public').doc('data').collection('responses').doc(item.id).delete();
-                                                        showToast("Deleted");
-                                                    }
-                                                }} className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-rose-500 transition-opacity">
+                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="p-1 text-slate-200 hover:text-rose-500 transition-colors">
                                                     <Icons.Trash />
                                                 </button>
                                             )}
                                         </div>
-                                        <h3 className="font-bold text-slate-800 mb-2">{item.scenario}</h3>
-                                        <p className="text-slate-500 text-sm whitespace-pre-wrap line-clamp-5">{item.message}</p>
+                                        <h3 className="font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors">{item.scenario}</h3>
+                                        <p className="text-slate-500 text-sm whitespace-pre-wrap line-clamp-6">{item.message}</p>
                                     </div>
-                                ))}
+                                )) : (
+                                    <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center space-y-4">
+                                        <p className="text-slate-400 text-sm font-medium">Your library is currently empty.</p>
+                                        {isAdmin && (
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setShowForm(true)} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-100 flex items-center gap-2"><Icons.Plus /> Create First Entry</button>
+                                                <button onClick={() => fileInputRef.current.click()} className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold flex items-center gap-2"><Icons.Upload /> Import Excel</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </main>
@@ -297,7 +395,7 @@
                     </footer>
 
                     {toast && (
-                        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-2xl animate-bounce z-[100]">
+                        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-2xl z-[100] animate-in slide-in-from-bottom-4 duration-300">
                             {toast}
                         </div>
                     )}
