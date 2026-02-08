@@ -33,7 +33,7 @@
     <!-- SheetJS for Excel Parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
-    <!-- Lucide Icons (via unpkg for reliability) -->
+    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
@@ -69,7 +69,7 @@
         const { useState, useEffect, useRef, useMemo } = React;
         const { 
             Upload, Search, Check, Trash2, FileText, 
-            Plus, Edit3, Download, Copy, LayoutGrid, X, Save
+            Plus, Edit3, Download, Copy, LayoutGrid, X, Save, Heart
         } = lucide;
 
         const THEMES = [
@@ -87,9 +87,12 @@
 
         const App = () => {
             const [data, setData] = useState(() => {
-                if (window.INITIAL_DATA) return window.INITIAL_DATA;
-                const saved = localStorage.getItem('agent_helper_data');
-                return saved ? JSON.parse(saved) : [];
+                try {
+                    const saved = localStorage.getItem('agent_helper_data');
+                    return saved ? JSON.parse(saved) : [];
+                } catch (e) {
+                    return [];
+                }
             });
             const [searchTerm, setSearchTerm] = useState("");
             const [activeCategory, setActiveCategory] = useState("All");
@@ -101,11 +104,9 @@
             const fileInputRef = useRef(null);
 
             useEffect(() => {
-                lucide.createIcons();
-            }, []);
-
-            useEffect(() => {
-                lucide.createIcons();
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
             }, [data, activeCategory, showForm, toast]); 
 
             const categoryData = useMemo(() => {
@@ -311,7 +312,7 @@
             };
 
             return (
-                <div className="min-h-screen pb-24 transition-colors duration-500">
+                <div className="min-h-screen pb-12 transition-colors duration-500 flex flex-col">
                     <header className="fixed top-0 left-0 right-0 z-40 glass-panel border-b border-slate-200/50">
                         <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex items-center justify-between">
                             <div className="flex items-center gap-3">
@@ -335,7 +336,7 @@
                         </div>
                     </header>
 
-                    <main className="max-w-7xl mx-auto px-4 lg:px-8 pt-24 pb-8 space-y-8">
+                    <main className="max-w-7xl mx-auto px-4 lg:px-8 pt-24 pb-8 space-y-8 flex-grow">
                         <div className="flex flex-wrap gap-2.5 pb-2">
                             {categoryData.map((cat) => (
                                 <button key={cat.name} onClick={() => setActiveCategory(cat.name)} className={`px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all border flex items-center gap-2 whitespace-nowrap ${activeCategory === cat.name ? `${cat.theme.bg} ${cat.theme.text} ${cat.theme.border} shadow-sm scale-105` : `bg-white border-slate-100 text-slate-400 hover:border-${cat.theme.id}-200 hover:text-${cat.theme.id}-600 hover:bg-slate-50`}`}>
@@ -415,6 +416,12 @@
                             )}
                         </div>
                     </main>
+
+                    <footer className="mt-auto py-8 text-center border-t border-slate-200/50">
+                        <div className="flex items-center justify-center gap-2 text-slate-400 font-medium text-sm">
+                            <span>Created by Ali Abo Ali</span>
+                        </div>
+                    </footer>
 
                     {toast.show && (
                         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 toast-enter">
