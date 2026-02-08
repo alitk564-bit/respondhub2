@@ -71,26 +71,19 @@
             HardDrive: () => <Icon path={<><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></>} />
         };
 
-             const userProvidedConfig = {
-            apiKey: "AIzaSyCkWkxeidV9x8BvNGD-jcmL44ha4vHHlf8",
-            authDomain: "respondhub-c4641.firebaseapp.com",
-            projectId: "respondhub-c4641",
-            storageBucket: "respondhub-c4641.firebasestorage.app",
-            messagingSenderId: "682357623707",
-            appId: "1:682357623707:web:e256f3ab48219bbfdfaf3e",
-            measurementId: "G-TLKTF1JK6N"
-        };
-
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userProvidedConfig;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'respondhub-c4641';
-        
-        let app, auth, db;
+        // --- Firebase Config Check & Init ---
+        let app, auth, db, appId, isCloudAvailable = false;
         try {
-            app = firebase.initializeApp(firebaseConfig);
-            auth = firebase.auth();
-            db = firebase.firestore();
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                const config = JSON.parse(__firebase_config);
+                app = firebase.initializeApp(config);
+                auth = firebase.auth();
+                db = firebase.firestore();
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+                isCloudAvailable = true;
+            }
         } catch (e) {
-            console.error("Firebase init failed", e);
+            console.log("Running in Local Mode (Cloud config missing or invalid)");
         }
 
         // --- Constants ---
