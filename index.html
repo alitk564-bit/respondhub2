@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Response Hub | Cloud Sync</title>
+    <title>Response Hub</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -18,7 +18,7 @@
         }
     </script>
     
-    <!-- Firebase SDKs -->
+    <!-- Firebase SDKs (Compat - Stable for single file) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -28,7 +28,7 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Excel Utility -->
+    <!-- Utilities -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
@@ -47,7 +47,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- ICONS ---
+        // --- ICONS (Inline for stability) ---
         const Icon = ({ path, className = "w-5 h-5" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 {path}
@@ -63,115 +63,126 @@
             Upload: () => <Icon path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>} />,
             Lock: () => <Icon path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>} />,
             Unlock: () => <Icon path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>} />,
+            Zap: () => <Icon path={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />,
             Cloud: () => <Icon path={<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>} />,
             Copy: () => <Icon path={<><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>} />,
-            HardDrive: () => <Icon path={<><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></>} />
+            Save: () => <Icon path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>} />,
+            HardDrive: () => <Icon path={<><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></>} />
         };
 
-        // --- Shared Constants ---
-        const THEMES = [
-            { id: 'blue', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-            { id: 'violet', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
-            { id: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-            { id: 'amber', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-            { id: 'rose', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
-        ];
+        // --- Firebase Config Integration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkWkxeidV9x8BvNGD-jcmL44ha4vHHlf8",
+            authDomain: "respondhub-c4641.firebaseapp.com",
+            projectId: "respondhub-c4641",
+            storageBucket: "respondhub-c4641.firebasestorage.app",
+            messagingSenderId: "682357623707",
+            appId: "1:682357623707:web:e256f3ab48219bbfdfaf3e",
+            measurementId: "G-TLKTF1JK6N"
+        };
 
-        // Global Firebase Instances
-        let app, auth, db, appId;
+        let app, auth, db, appId = "respondhub-main", isCloudAvailable = false;
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+            isCloudAvailable = true;
+        } catch (e) {
+            console.log("Firebase failed to initialize:", e);
+        }
+
+        const THEMES = [
+            { id: 'blue', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', ring: 'ring-blue-500' },
+            { id: 'violet', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', ring: 'ring-violet-500' },
+            { id: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', ring: 'ring-emerald-500' },
+            { id: 'amber', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', ring: 'ring-amber-500' },
+            { id: 'rose', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', ring: 'ring-rose-500' },
+            { id: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', ring: 'ring-indigo-500' },
+        ];
 
         const App = () => {
             const [user, setUser] = useState(null);
             const [isAdmin, setIsAdmin] = useState(false);
-            const [isLocal, setIsLocal] = useState(false);
+            const [isLocalMode, setIsLocalMode] = useState(!isCloudAvailable);
             const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
             const [searchTerm, setSearchTerm] = useState("");
             const [activeCategory, setActiveCategory] = useState("All");
             const [showForm, setShowForm] = useState(false);
             const [editingItem, setEditingItem] = useState(null);
-            const [toast, setToast] = useState({ show: false, message: "" });
+            const [toast, setToast] = useState({ show: false, message: "", type: "success" });
             const [form, setForm] = useState({ category: "", scenario: "", message: "", section: "" });
             
             const fileInput = useRef(null);
 
-            // 1. Initialize Auth and DB
+            // Auth & Data Listeners
             useEffect(() => {
-                const initFirebase = async () => {
-                    try {
-                        const config = JSON.parse(__firebase_config);
-                        appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
-                        app = firebase.initializeApp(config);
-                        auth = firebase.auth();
-                        db = firebase.firestore();
-
-                        // Sign in to access Firestore
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await auth.signInWithCustomToken(__initial_auth_token);
-                        } else {
-                            await auth.signInAnonymously();
-                        }
-                        
-                        auth.onAuthStateChanged((u) => {
-                            setUser(u);
-                            if (!u) setIsLocal(true);
-                        });
-
-                    } catch (e) {
-                        console.error("Firebase config missing or failed, using local storage", e);
-                        setIsLocal(true);
-                        setLoading(false);
-                    }
-                };
-                initFirebase();
-            }, []);
-
-            // 2. Sync Data (Cloud or Local)
-            useEffect(() => {
-                if (isLocal) {
-                    const localData = localStorage.getItem('agent_helper_data');
-                    if (localData) setData(JSON.parse(localData));
+                if (!isCloudAvailable) {
                     setLoading(false);
+                    const localData = localStorage.getItem('agent_helper_data');
+                    if(localData) setData(JSON.parse(localData));
                     return;
                 }
 
-                if (!user || !db) return;
+                const setup = async () => {
+                    try {
+                        await auth.signInAnonymously();
+                    } catch (e) {
+                        setIsLocalMode(true);
+                        setLoading(false);
+                    }
+                };
+                setup();
 
-                // Syncing with the public shared data path
-                const dataPath = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
-                
-                const unsubscribe = dataPath.onSnapshot((snapshot) => {
-                    const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    setData(items);
-                    setLoading(false);
-                }, (err) => {
-                    console.error("Firestore sync error:", err);
-                    setIsLocal(true);
-                    setLoading(false);
+                const unsubscribeAuth = auth.onAuthStateChanged((u) => {
+                    setUser(u);
+                    if (u) {
+                        // Success listener
+                        const unsubscribeData = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses')
+                            .onSnapshot((snapshot) => {
+                                const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                                setData(items);
+                                setLoading(false);
+                                setIsLocalMode(false);
+                            }, (err) => {
+                                console.error("Firestore sync error:", err);
+                                setIsLocalMode(true);
+                                setLoading(false);
+                            });
+                        return () => unsubscribeData();
+                    }
                 });
+                return () => unsubscribeAuth();
+            }, []);
 
-                return () => unsubscribe();
-            }, [user, isLocal]);
+            const categories = useMemo(() => {
+                const unique = ["All", ...new Set(data.map(d => d.category))];
+                return unique.map((name, i) => ({ name, theme: THEMES[i % THEMES.length] }));
+            }, [data]);
 
-            // Toast helper
-            const showToast = (msg) => {
-                setToast({ show: true, message: msg });
-                setTimeout(() => setToast({ show: false, message: "" }), 2500);
+            const showToast = (msg, type = "success") => {
+                setToast({ show: true, message: msg, type });
+                setTimeout(() => setToast({ show: false, message: "", type: "success" }), 2500);
             };
 
             const toggleAdmin = () => {
                 if (isAdmin) {
                     setIsAdmin(false);
-                    showToast("Admin mode disabled");
+                    showToast("Exited Admin Mode");
                 } else {
                     const pw = prompt("Enter Admin Password:");
                     if (pw === "ALM989$100%") {
                         setIsAdmin(true);
-                        showToast("Logged in as Admin");
+                        showToast("Admin Mode Active");
                     } else if (pw !== null) {
-                        showToast("Invalid password");
+                        showToast("Incorrect Password", "error");
                     }
                 }
+            };
+
+            const saveLocally = (newData) => {
+                setData(newData);
+                localStorage.setItem('agent_helper_data', JSON.stringify(newData));
             };
 
             const handleSave = async (e) => {
@@ -179,47 +190,48 @@
                 if (!isAdmin) return;
                 
                 try {
-                    const itemData = { ...form, updatedAt: new Date().toISOString() };
-                    
-                    if (isLocal) {
-                        const updated = editingItem 
-                            ? data.map(i => i.id === editingItem.id ? { ...i, ...itemData } : i)
-                            : [{ ...itemData, id: Date.now().toString() }, ...data];
-                        setData(updated);
-                        localStorage.setItem('agent_helper_data', JSON.stringify(updated));
-                        showToast("Saved locally");
+                    if (isLocalMode) {
+                        let updated;
+                        if (editingItem) {
+                            updated = data.map(i => i.id === editingItem.id ? { ...i, ...form } : i);
+                            showToast("Updated locally");
+                        } else {
+                            updated = [{ ...form, id: Date.now().toString() }, ...data];
+                            showToast("Saved locally");
+                        }
+                        saveLocally(updated);
                     } else {
                         const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
                         if (editingItem) {
-                            await colRef.doc(editingItem.id).update(itemData);
-                            showToast("Updated in Cloud");
+                            await colRef.doc(editingItem.id).update(form);
+                            showToast("Updated online");
                         } else {
-                            await colRef.add({ ...itemData, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-                            showToast("Saved to Cloud");
+                            await colRef.add({ ...form, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                            showToast("Saved to cloud");
                         }
                     }
                     setShowForm(false);
                     setEditingItem(null);
                     setForm({ category: "", scenario: "", message: "", section: "" });
-                } catch (err) {
-                    showToast("Error saving data");
+                } catch (err) { 
+                    showToast("Save failed", "error"); 
                 }
             };
 
             const handleDelete = async (id, e) => {
                 e.stopPropagation();
-                if (!isAdmin || !confirm("Delete permanently?")) return;
+                if (!isAdmin || !confirm("Delete this permanently?")) return;
                 
-                try {
-                    if (isLocal) {
-                        const updated = data.filter(i => i.id !== id);
-                        setData(updated);
-                        localStorage.setItem('agent_helper_data', JSON.stringify(updated));
-                    } else {
+                if (isLocalMode) {
+                    const updated = data.filter(i => i.id !== id);
+                    saveLocally(updated);
+                    showToast("Deleted locally");
+                } else {
+                    try {
                         await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
-                    }
-                    showToast("Deleted");
-                } catch (err) { showToast("Delete failed"); }
+                        showToast("Deleted from cloud");
+                    } catch (err) { showToast("Delete failed", "error"); }
+                }
             };
 
             const handleImport = (e) => {
@@ -230,11 +242,10 @@
                     try {
                         const wb = XLSX.read(evt.target.result, { type: 'binary' });
                         let count = 0;
-                        const colRef = !isLocal ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses') : null;
-                        let localBatch = [...data];
+                        const colRef = !isLocalMode ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses') : null;
 
-                        for (const sheetName of wb.SheetNames) {
-                            const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+                        for (const sheet of wb.SheetNames) {
+                            const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
                             for (const row of rows) {
                                 const keys = Object.keys(row);
                                 const scenario = row[keys.find(k => k.toLowerCase().includes('scenario'))] || "Untitled";
@@ -242,15 +253,15 @@
                                 
                                 if (message) {
                                     const entry = {
-                                        category: sheetName,
+                                        category: sheet,
                                         scenario: String(scenario),
                                         message: String(message),
                                         section: String(row.Section || ""),
-                                        updatedAt: new Date().toISOString()
                                     };
 
-                                    if (isLocal) {
-                                        localBatch.push({ ...entry, id: `import-${Date.now()}-${count}` });
+                                    if (isLocalMode) {
+                                        entry.id = `local-${Date.now()}-${count}`;
+                                        setData(prev => [entry, ...prev]);
                                     } else {
                                         await colRef.add({ ...entry, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
                                     }
@@ -258,24 +269,11 @@
                                 }
                             }
                         }
-                        
-                        if (isLocal) {
-                            setData(localBatch);
-                            localStorage.setItem('agent_helper_data', JSON.stringify(localBatch));
-                        }
-                        showToast(`Imported ${count} records successfully`);
-                    } catch (err) { 
-                        console.error(err);
-                        showToast("Import failed"); 
-                    }
+                        showToast(`Imported ${count} items`);
+                    } catch (err) { showToast("Import failed", "error"); }
                 };
                 reader.readAsBinaryString(file);
             };
-
-            const categories = useMemo(() => {
-                const unique = ["All", ...new Set(data.map(d => d.category))];
-                return unique.map((name, i) => ({ name, theme: THEMES[i % THEMES.length] }));
-            }, [data]);
 
             const filtered = data.filter(item => {
                 const s = searchTerm.toLowerCase();
@@ -298,18 +296,49 @@
                 return { groups, sortedKeys: Object.keys(groups).sort(), noSection };
             }, [filtered]);
 
+            const RenderCard = ({ item }) => {
+                const theme = categories.find(c => c.name === item.category)?.theme || THEMES[0];
+                return (
+                    <div 
+                        onClick={() => { navigator.clipboard.writeText(item.message); showToast("Copied!"); }}
+                        className="group bg-white p-5 rounded-2xl shadow-card border border-transparent hover:border-slate-200 hover:shadow-lg transition-all cursor-pointer relative flex flex-col h-full overflow-hidden"
+                    >
+                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${theme.bg.replace('bg-', 'bg-')}-500`}></div>
+                        <div className="flex justify-between items-start mb-3 pl-2">
+                            <div className="flex flex-col gap-1">
+                                <span className={`w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${theme.bg} ${theme.text}`}>
+                                    {item.category}
+                                </span>
+                                <h3 className="font-bold text-slate-800 leading-snug">{item.scenario}</h3>
+                            </div>
+                            {isAdmin && (
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={(e) => { e.stopPropagation(); setEditingItem(item); setForm(item); setShowForm(true); }} className="p-1.5 hover:bg-slate-100 rounded text-slate-400"><Icons.Edit /></button>
+                                    <button onClick={(e) => handleDelete(item.id, e)} className="p-1.5 hover:bg-red-50 rounded text-red-400"><Icons.Trash /></button>
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-slate-500 text-sm line-clamp-4 leading-relaxed mb-4 pl-2 whitespace-pre-wrap">{item.message}</p>
+                        <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase pl-2">
+                            <span>Tap to copy</span>
+                            <Icons.Copy className="w-3 h-3" />
+                        </div>
+                    </div>
+                );
+            };
+
             return (
-                <div className="min-h-screen flex flex-col">
+                <div className="min-h-screen flex flex-col bg-[#f8fafc]">
                     <header className="fixed top-0 w-full z-50 glass px-4 md:px-8 py-4">
                         <div className="max-w-7xl mx-auto flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg text-white ${isLocal ? 'bg-amber-500' : 'bg-indigo-600'}`}>
-                                    {isLocal ? <Icons.HardDrive /> : <Icons.Cloud />}
+                                <div className={`p-2 rounded-lg text-white shadow-lg ${isLocalMode ? 'bg-amber-500' : 'bg-indigo-600'}`}>
+                                    {isLocalMode ? <Icons.HardDrive /> : <Icons.Zap />}
                                 </div>
-                                <div>
+                                <div className="hidden sm:block">
                                     <h1 className="font-bold text-slate-900 leading-none">Response Hub</h1>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                                        {isLocal ? "Local Device Only" : (isAdmin ? 'Cloud Admin' : 'Cloud Sync Active')}
+                                        {isLocalMode ? "Local Storage" : "Cloud Sync Active"}
                                     </p>
                                 </div>
                             </div>
@@ -320,12 +349,14 @@
                                         <button onClick={() => fileInput.current.click()} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"><Icons.Upload /></button>
                                         <button onClick={() => { setShowForm(!showForm); setEditingItem(null); }} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
                                             {showForm ? <Icons.X /> : <Icons.Plus />}
-                                            <span className="hidden xs:inline">{showForm ? "Cancel" : "New"}</span>
+                                            <span>{showForm ? "Cancel" : "New"}</span>
                                         </button>
                                         <button onClick={toggleAdmin} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Unlock /></button>
                                     </>
                                 ) : (
-                                    <button onClick={toggleAdmin} className="p-2 text-slate-400 hover:text-slate-600"><Icons.Lock /></button>
+                                    <button onClick={toggleAdmin} className="px-4 py-2 text-slate-400 hover:text-slate-600 rounded-lg flex items-center gap-2 text-xs font-bold">
+                                        <Icons.Lock /> Admin
+                                    </button>
                                 )}
                                 <input type="file" ref={fileInput} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
                             </div>
@@ -339,17 +370,17 @@
                                     <button 
                                         key={cat.name} 
                                         onClick={() => setActiveCategory(cat.name)}
-                                        className={`px-5 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${activeCategory === cat.name ? `${cat.theme.bg} ${cat.theme.text} ${cat.theme.border}` : 'bg-white border-slate-200 text-slate-400'}`}
+                                        className={`px-5 py-2 rounded-full text-xs font-bold transition-all border ${activeCategory === cat.name ? `${cat.theme.bg} ${cat.theme.text} ${cat.theme.border}` : 'bg-white border-slate-200 text-slate-400'}`}
                                     >
                                         {cat.name}
                                     </button>
                                 ))}
                             </div>
-                            <div className="relative">
+                            <div className="relative group">
                                 <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300"><Icons.Search /></div>
                                 <input 
                                     type="text" 
-                                    placeholder="Search global library..." 
+                                    placeholder="Search library..." 
                                     className="w-full pl-14 pr-10 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-indigo-50 transition-all text-lg shadow-sm"
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
@@ -357,19 +388,17 @@
                             </div>
                         </div>
 
-                        {showForm && isAdmin && (
+                        {showForm && (
                             <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 mb-8 shadow-xl animate-in">
-                                <h2 className="text-xl font-bold mb-6">{editingItem ? "Edit Response" : "Create Global Response"}</h2>
+                                <h2 className="text-xl font-bold mb-6">{editingItem ? "Edit Response" : "New Response"}</h2>
                                 <form onSubmit={handleSave} className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Category (e.g. Sales)" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
-                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Section (Optional)" value={form.section} onChange={e => setForm({...form, section: e.target.value})} />
-                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Scenario Title" value={form.scenario} onChange={e => setForm({...form, scenario: e.target.value})} required />
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Category" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Section" value={form.section} onChange={e => setForm({...form, section: e.target.value})} />
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Scenario" value={form.scenario} onChange={e => setForm({...form, scenario: e.target.value})} required />
                                     </div>
-                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 h-32 resize-none" placeholder="Message content..." value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
-                                    <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all">
-                                        {isLocal ? "Save to Browser" : (editingItem ? "Update Cloud" : "Push to All Users")}
-                                    </button>
+                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 h-32" placeholder="Message content..." value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
+                                    <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold">Push Sync</button>
                                 </form>
                             </div>
                         )}
@@ -377,76 +406,39 @@
                         {loading ? (
                             <div className="py-32 text-center">
                                 <div className="loader mx-auto mb-6"></div>
-                                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Syncing Global Data...</p>
+                                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">Syncing Cloud...</p>
                             </div>
                         ) : (
                             <div className="space-y-10">
                                 {sections.noSection.length > 0 && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in">
-                                        {sections.noSection.map(item => <Card key={item.id} item={item} isAdmin={isAdmin} onEdit={() => {setEditingItem(item); setForm(item); setShowForm(true);}} onDelete={(e) => handleDelete(item.id, e)} onCopy={() => showToast("Copied to clipboard")} categories={categories} />)}
+                                        {sections.noSection.map(item => <RenderCard key={item.id} item={item} />)}
                                     </div>
                                 )}
 
                                 {sections.sortedKeys.map(key => (
                                     <div key={key} className="space-y-4 animate-in">
                                         <div className="flex items-center gap-4">
-                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{key}</span>
+                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{key}</span>
                                             <div className="h-px bg-slate-200 w-full"></div>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            {sections.groups[key].map(item => <Card key={item.id} item={item} isAdmin={isAdmin} onEdit={() => {setEditingItem(item); setForm(item); setShowForm(true);}} onDelete={(e) => handleDelete(item.id, e)} onCopy={() => showToast("Copied to clipboard")} categories={categories} />)}
+                                            {sections.groups[key].map(item => <RenderCard key={item.id} item={item} />)}
                                         </div>
                                     </div>
                                 ))}
-
-                                {filtered.length === 0 && (
-                                    <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl">
-                                        <p className="text-slate-400 text-sm">No results found in global library.</p>
-                                    </div>
-                                )}
                             </div>
                         )}
                     </main>
 
                     {toast.show && (
                         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in">
-                            <div className="px-6 py-3 rounded-full shadow-2xl bg-slate-900 text-white flex items-center gap-2">
-                                <Icons.Check />
+                            <div className={`px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 text-white bg-slate-900`}>
+                                <Icons.Check className="text-emerald-400" />
                                 <span className="text-xs font-bold uppercase tracking-wider">{toast.message}</span>
                             </div>
                         </div>
                     )}
-                </div>
-            );
-        };
-
-        const Card = ({ item, isAdmin, onEdit, onDelete, onCopy, categories }) => {
-            const theme = categories.find(c => c.name === item.category)?.theme || THEMES[0];
-            return (
-                <div 
-                    onClick={() => { navigator.clipboard.writeText(item.message); onCopy(); }}
-                    className="group bg-white p-5 rounded-2xl shadow-card border border-transparent hover:border-slate-200 transition-all cursor-pointer relative flex flex-col h-full overflow-hidden"
-                >
-                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${theme.bg.replace('50', '500')}`}></div>
-                    <div className="flex justify-between items-start mb-3 pl-2">
-                        <div className="flex flex-col gap-1">
-                            <span className={`w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${theme.bg} ${theme.text}`}>
-                                {item.category}
-                            </span>
-                            <h3 className="font-bold text-slate-800 leading-snug">{item.scenario}</h3>
-                        </div>
-                        {isAdmin && (
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-1.5 hover:bg-slate-100 rounded text-slate-400"><Icons.Edit /></button>
-                                <button onClick={onDelete} className="p-1.5 hover:bg-red-50 rounded text-red-400"><Icons.Trash /></button>
-                            </div>
-                        )}
-                    </div>
-                    <p className="text-slate-500 text-sm line-clamp-4 leading-relaxed mb-4 pl-2 whitespace-pre-wrap">{item.message}</p>
-                    <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase pl-2">
-                        <span>Tap to copy</span>
-                        <Icons.Copy className="w-3 h-3" />
-                    </div>
                 </div>
             );
         };
