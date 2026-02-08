@@ -6,7 +6,6 @@
     <title>Response Hub | Admin</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Use specific versioned Firebase compat scripts for stability -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -32,7 +31,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- Firebase Constants ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'global-response-hub';
         let db, auth;
 
@@ -76,16 +74,11 @@
 
             const showToast = (msg) => {
                 setToast(msg);
-                setTimeout(() => setToast(null), 3000);
+                setTimeout(() => setToast(null), 4000);
             };
 
-            // Authentication Lifecycle
             useEffect(() => {
-                if (!auth) {
-                    setLoading(false);
-                    return;
-                }
-
+                if (!auth) { setLoading(false); return; }
                 const initAuth = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -95,7 +88,6 @@
                         }
                     } catch (e) { console.error("Auth failed:", e); }
                 };
-
                 initAuth();
                 const unsubscribe = auth.onAuthStateChanged(u => {
                     setUser(u);
@@ -104,13 +96,10 @@
                 return () => unsubscribe();
             }, []);
 
-            // Real-time Database Listener
             useEffect(() => {
                 if (!isAuthenticated || !db || !user) return;
-                
                 setLoading(true);
                 const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
-                
                 const unsubscribe = colRef.onSnapshot(snapshot => {
                     const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     setData(items);
@@ -119,7 +108,6 @@
                     console.error("Snapshot Error:", err);
                     setLoading(false);
                 });
-
                 return () => unsubscribe();
             }, [isAuthenticated, user]);
 
@@ -130,12 +118,52 @@
             };
 
             const toggleAdmin = () => {
-                if (isAdmin) {
-                    setIsAdmin(false);
-                } else {
+                if (isAdmin) setIsAdmin(false);
+                else {
                     const pw = prompt("Admin Key:");
-                    if (pw === "ALM989$100%") setIsAdmin(true);
+                    if (pw === "admin123") setIsAdmin(true);
                     else if (pw) showToast("Invalid Key");
+                }
+            };
+
+            const bulkUpload = async (items) => {
+                if (!items.length) {
+                    showToast("No valid data found in file");
+                    return;
+                }
+                
+                setIsSaving(true);
+                showToast(`Importing ${items.length} items. Please wait...`);
+
+                try {
+                    const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                    
+                    // Firestore batches have a limit of 500. We'll use 450 to be safe.
+                    const chunkSize = 450;
+                    for (let i = 0; i < items.length; i += chunkSize) {
+                        const batch = db.batch();
+                        const chunk = items.slice(i, i + chunkSize);
+                        
+                        chunk.forEach(item => {
+                            const newDocRef = colRef.doc();
+                            batch.set(newDocRef, {
+                                ...item,
+                                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                                authorId: user.uid
+                            });
+                        });
+                        
+                        await batch.commit();
+                        console.log(`Uploaded chunk ${Math.floor(i/chunkSize) + 1}`);
+                    }
+
+                    showToast(`Successfully imported ${items.length} responses`);
+                } catch (err) {
+                    console.error("Bulk Upload Error:", err);
+                    showToast(`Import Error: ${err.message || 'Check database permissions'}`);
+                } finally {
+                    setIsSaving(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
                 }
             };
 
@@ -151,8 +179,10 @@
                             const imported = JSON.parse(evt.target.result);
                             if (Array.isArray(imported)) {
                                 await bulkUpload(imported);
+                            } else {
+                                showToast("JSON must be an array of objects");
                             }
-                        } catch (err) { showToast("Invalid JSON file"); }
+                        } catch (err) { showToast("Invalid JSON file format"); }
                     };
                     reader.readAsText(file);
                 } else {
@@ -161,62 +191,41 @@
                             const bstr = evt.target.result;
                             const wb = XLSX.read(bstr, { type: 'binary' });
                             let imported = [];
+                            
                             wb.SheetNames.forEach((sheetName) => {
                                 const jsonData = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
                                 const entries = jsonData.map(row => {
+                                    // Intelligent column mapping
                                     const keys = Object.keys(row);
-                                    const scenarioKey = keys.find(k => k.toLowerCase().includes('scenario')) || keys[0];
-                                    const messageKey = keys.find(k => k.toLowerCase().includes('message')) || keys[1];
+                                    const findKey = (search) => keys.find(k => k.toLowerCase().includes(search.toLowerCase()));
+                                    
+                                    const scenarioKey = findKey('scenario') || findKey('title') || findKey('subject') || keys[0];
+                                    const messageKey = findKey('message') || findKey('body') || findKey('response') || keys[1];
+                                    const catKey = findKey('category') || findKey('group');
+                                    
                                     return {
                                         scenario: String(row[scenarioKey] || "Untitled"),
                                         message: String(row[messageKey] || ""),
-                                        category: sheetName
+                                        category: catKey ? String(row[catKey]) : sheetName
                                     };
-                                }).filter(i => i.message);
+                                }).filter(i => i.message && i.message.trim() !== "");
+                                
                                 imported = [...imported, ...entries];
                             });
+                            
                             await bulkUpload(imported);
                         } catch (err) { 
-                            console.error(err);
-                            showToast("Excel Import Failed"); 
+                            console.error("Excel Read Error:", err);
+                            showToast("Error reading Excel file"); 
                         }
                     };
                     reader.readAsBinaryString(file);
                 }
             };
 
-            const bulkUpload = async (items) => {
-                if (!items.length) return;
-                setIsSaving(true);
-                showToast(`Importing ${items.length} items...`);
-                try {
-                    const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
-                    const batch = db.batch();
-                    
-                    items.forEach(item => {
-                        const newDocRef = colRef.doc();
-                        batch.set(newDocRef, {
-                            ...item,
-                            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                            authorId: user.uid
-                        });
-                    });
-
-                    await batch.commit();
-                    showToast(`Successfully imported ${items.length} items`);
-                } catch (err) {
-                    console.error(err);
-                    showToast("Bulk Upload Failed");
-                } finally {
-                    setIsSaving(false);
-                    if (fileInputRef.current) fileInputRef.current.value = "";
-                }
-            };
-
             const handleSave = async (e) => {
                 e.preventDefault();
                 if (!isAdmin || !db || isSaving) return;
-                
                 setIsSaving(true);
                 try {
                     const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
@@ -227,9 +236,9 @@
                     });
                     setForm({ category: "", scenario: "", message: "" });
                     setShowForm(false);
-                    showToast("Success: Saved to Cloud");
+                    showToast("Entry saved to cloud");
                 } catch (err) {
-                    showToast("Error: Save Failed");
+                    showToast("Save Failed");
                 } finally {
                     setIsSaving(false);
                 }
@@ -254,7 +263,7 @@
             if (!isAuthenticated) {
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-slate-900 p-6">
-                        <div className="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl space-y-6 animate-in fade-in zoom-in duration-300">
+                        <div className="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl space-y-6">
                             <div className="text-center">
                                 <h2 className="text-2xl font-extrabold text-slate-800">Welcome Back</h2>
                                 <p className="text-slate-400 text-sm mt-1">Response Library Access</p>
@@ -270,11 +279,6 @@
                                 />
                                 <button className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all">Unlock Hub</button>
                             </form>
-                            <div className="pt-4 text-center border-t border-slate-50">
-                                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest flex items-center justify-center gap-2">
-                                    Created by Ali Abo Ali
-                                </p>
-                            </div>
                         </div>
                     </div>
                 );
@@ -295,8 +299,9 @@
                                         <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx,.xls,.json" className="hidden" />
                                         <button 
                                             onClick={() => fileInputRef.current.click()}
-                                            className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
-                                            title="Import Excel/JSON"
+                                            disabled={isSaving}
+                                            className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-30"
+                                            title="Import File"
                                         >
                                             <Icons.Upload />
                                         </button>
@@ -329,17 +334,14 @@
                         </div>
 
                         {showForm && (
-                            <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl border-2 border-indigo-100 mb-10 shadow-lg space-y-4 animate-in slide-in-from-top-4 duration-300">
+                            <form onSubmit={handleSave} className="bg-white p-6 rounded-3xl border-2 border-indigo-100 mb-10 shadow-lg space-y-4">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <input placeholder="Category (e.g. Greeting)" className="p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
                                     <input placeholder="Scenario (e.g. Late Arrival)" className="p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" value={form.scenario} onChange={e => setForm({...form, scenario: e.target.value})} required />
                                 </div>
                                 <textarea placeholder="Paste message here..." className="w-full p-4 bg-slate-50 rounded-xl h-32 outline-none focus:ring-2 focus:ring-indigo-500" value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
-                                <button 
-                                    disabled={isSaving}
-                                    className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:bg-slate-300 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    {isSaving ? <><div className="loader h-4 w-4 border-white border-t-transparent"></div> Syncing...</> : "Publish to Database"}
+                                <button disabled={isSaving} className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:bg-slate-300">
+                                    {isSaving ? "Syncing..." : "Publish to Database"}
                                 </button>
                             </form>
                         )}
@@ -347,7 +349,7 @@
                         {loading ? (
                             <div className="flex flex-col items-center py-20">
                                 <div className="loader"></div>
-                                <p className="text-xs font-bold text-slate-400 mt-4 uppercase tracking-widest">Connecting to Cloud...</p>
+                                <p className="text-xs font-bold text-slate-400 mt-4 uppercase tracking-widest">Syncing with Cloud...</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -356,9 +358,9 @@
                                         key={item.id} 
                                         onClick={() => { 
                                             document.execCommand('copy') || navigator.clipboard.writeText(item.message); 
-                                            showToast("Copied to Clipboard"); 
+                                            showToast("Copied"); 
                                         }}
-                                        className="group bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer relative active:scale-[0.98] animate-in fade-in slide-in-from-bottom-2 duration-300"
+                                        className="group bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer relative active:scale-[0.98]"
                                     >
                                         <div className="flex justify-between items-start mb-3">
                                             <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-1 rounded-md">
@@ -375,10 +377,10 @@
                                     </div>
                                 )) : (
                                     <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center space-y-4">
-                                        <p className="text-slate-400 text-sm font-medium">Your library is currently empty.</p>
+                                        <p className="text-slate-400 text-sm">Library is empty.</p>
                                         {isAdmin && (
                                             <div className="flex gap-2">
-                                                <button onClick={() => setShowForm(true)} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-100 flex items-center gap-2"><Icons.Plus /> Create First Entry</button>
+                                                <button onClick={() => setShowForm(true)} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold flex items-center gap-2"><Icons.Plus /> New Entry</button>
                                                 <button onClick={() => fileInputRef.current.click()} className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold flex items-center gap-2"><Icons.Upload /> Import Excel</button>
                                             </div>
                                         )}
@@ -387,12 +389,6 @@
                             </div>
                         )}
                     </main>
-
-                    <footer className="py-10 text-center">
-                        <div className="flex items-center justify-center gap-2 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                            Created by Ali Abo Ali
-                        </div>
-                    </footer>
 
                     {toast && (
                         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-2xl z-[100] animate-in slide-in-from-bottom-4 duration-300">
