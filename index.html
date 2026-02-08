@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Response Hub</title>
+    <title>Response Hub - Online Sync</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,80 +11,104 @@
         tailwind.config = {
             theme: {
                 extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'Segoe UI', 'sans-serif'],
-                    },
-                    boxShadow: {
-                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-                        'card': '0 0 0 1px rgba(0,0,0,0.03), 0 2px 8px rgba(0,0,0,0.04)',
-                    }
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    boxShadow: { 'card': '0 2px 12px -2px rgba(0,0,0,0.05), 0 0 1px rgba(0,0,0,0.1)' }
                 }
             }
         }
     </script>
     
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+    <!-- Firebase SDKs (Compat - Stable for single file) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-    <!-- React & ReactDOM -->
+    <!-- React -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Utilities -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-        body { background-color: #f8fafc; -webkit-font-smoothing: antialiased; }
-        .glass-panel { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        body { background-color: #f8fafc; color: #1e293b; overflow-x: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid #e2e8f0; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .animate-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo } = React;
-        const { 
-            Upload, Search, Check, Trash2, FileText, 
-            Plus, Edit3, Download, Copy, LayoutGrid, X, Save, Heart, Lock, Unlock
-        } = lucide;
+        const { useState, useEffect, useMemo, useRef } = React;
 
-        // Firebase Configuration from Environment
-        const firebaseConfig = JSON.parse(__firebase_config);
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // --- ICONS (Inline for stability) ---
+        const Icon = ({ path, className = "w-5 h-5" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {path}
+            </svg>
+        );
+        const Icons = {
+            Search: () => <Icon path={<><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>} />,
+            Plus: () => <Icon path={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>} />,
+            X: () => <Icon path={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />,
+            Check: () => <Icon path={<polyline points="20 6 9 17 4 12"/>} />,
+            Edit: () => <Icon path={<><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>} />,
+            Trash: () => <Icon path={<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>} />,
+            Upload: () => <Icon path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>} />,
+            Lock: () => <Icon path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>} />,
+            Unlock: () => <Icon path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>} />,
+            Zap: () => <Icon path={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />,
+            Cloud: () => <Icon path={<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>} />,
+            Copy: () => <Icon path={<><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>} />,
+            Save: () => <Icon path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>} />,
+            Heart: () => <Icon className="w-3 h-3 text-rose-400 fill-current" path={<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>} />
+        };
 
+        // --- Firebase Config Check & Init ---
+        let app, auth, db, appId;
+        try {
+            const config = JSON.parse(__firebase_config);
+            app = firebase.initializeApp(config);
+            auth = firebase.auth();
+            db = firebase.firestore();
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+        } catch (e) {
+            console.error("Firebase Init Failed:", e);
+        }
+
+        // --- Constants ---
         const THEMES = [
-            { id: 'blue', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
-            { id: 'violet', bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700' },
-            { id: 'emerald', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
-            { id: 'rose', bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700' },
-            { id: 'amber', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
-            { id: 'cyan', bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700' },
-            { id: 'orange', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' }
+            { id: 'blue', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', ring: 'ring-blue-500' },
+            { id: 'violet', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', ring: 'ring-violet-500' },
+            { id: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', ring: 'ring-emerald-500' },
+            { id: 'amber', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', ring: 'ring-amber-500' },
+            { id: 'rose', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', ring: 'ring-rose-500' },
+            { id: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', ring: 'ring-indigo-500' },
         ];
 
         const App = () => {
-            const [isAdmin, setIsAdmin] = useState(false);
             const [user, setUser] = useState(null);
+            const [isAdmin, setIsAdmin] = useState(false);
             const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
             const [searchTerm, setSearchTerm] = useState("");
             const [activeCategory, setActiveCategory] = useState("All");
-            const [toast, setToast] = useState({ show: false, message: "" });
             const [showForm, setShowForm] = useState(false);
-            const [editingId, setEditingId] = useState(null);
-            const [formEntry, setFormEntry] = useState({ scenario: "", message: "", category: "", section: "" });
+            const [editingItem, setEditingItem] = useState(null);
+            const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+            const [form, setForm] = useState({ category: "", scenario: "", message: "", section: "" });
             
-            const fileInputRef = useRef(null);
+            const fileInput = useRef(null);
 
-            // Authentication Initialization
+            // 1. Auth Init
             useEffect(() => {
+                if (!auth) { setLoading(false); return; }
                 const initAuth = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -92,313 +116,319 @@
                         } else {
                             await auth.signInAnonymously();
                         }
-                    } catch (err) {
-                        console.error("Auth error:", err);
-                    }
+                    } catch (e) { console.error("Auth error", e); }
                 };
                 initAuth();
-                const unsubscribe = auth.onAuthStateChanged(setUser);
-                return () => unsubscribe();
+                return auth.onAuthStateChanged(setUser);
             }, []);
 
-            // Real-time Cloud Data Fetching
+            // 2. Data Sync
             useEffect(() => {
-                if (!user) return;
-
-                const collectionPath = `artifacts/${appId}/public/data/responses`;
-                const unsubscribe = db.collection(collectionPath)
+                if (!user || !db) return;
+                
+                // Using STRICT path structure required by environment
+                // artifacts/{appId}/public/data/responses
+                const unsubscribe = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses')
                     .onSnapshot((snapshot) => {
-                        const items = snapshot.docs.map(doc => ({
-                            id: doc.id,
-                            ...doc.data()
-                        }));
+                        const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                         setData(items);
                         setLoading(false);
-                        if (window.lucide) window.lucide.createIcons();
                     }, (error) => {
-                        console.error("Firestore error:", error);
-                        showToast("Failed to load data", "error");
+                        console.error("Sync error", error);
                         setLoading(false);
                     });
-
                 return () => unsubscribe();
             }, [user]);
 
-            useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
-            }, [data, activeCategory, showForm, toast, isAdmin, loading]);
-
-            const categoryData = useMemo(() => {
-                const rawCats = ["All", ...new Set(data.map(i => i.category))];
-                return rawCats.map((name, index) => ({
-                    name,
-                    theme: THEMES[index % THEMES.length]
-                }));
+            // Computed
+            const categories = useMemo(() => {
+                const unique = ["All", ...new Set(data.map(d => d.category))];
+                return unique.map((name, i) => ({ name, theme: THEMES[i % THEMES.length] }));
             }, [data]);
+
+            const activeTheme = useMemo(() => {
+                return categories.find(c => c.name === activeCategory)?.theme || THEMES[0];
+            }, [categories, activeCategory]);
+
+            // Handlers
+            const showToast = (msg, type = "success") => {
+                setToast({ show: true, message: msg, type });
+                setTimeout(() => setToast({ show: false, message: "", type: "success" }), 2500);
+            };
 
             const toggleAdmin = () => {
                 if (isAdmin) {
                     setIsAdmin(false);
-                    showToast("Logged out of Admin Mode", "info");
+                    showToast("Exited Admin Mode");
                 } else {
                     const pw = prompt("Enter Admin Password:");
-                    if (pw === "ALM989$100%") {
+                    if (pw === "admin123") {
                         setIsAdmin(true);
-                        showToast("Admin Mode Activated", "success");
+                        showToast("Admin Mode Active");
                     } else if (pw !== null) {
-                        showToast("Invalid password", "error");
+                        showToast("Incorrect Password", "error");
                     }
                 }
             };
 
-            const handleFileUpload = async (e) => {
-                if (!isAdmin || !user) return;
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
+            const handleSave = async (e) => {
+                e.preventDefault();
+                if (!user || !isAdmin || !db) return;
+                
+                const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                try {
+                    if (editingItem) {
+                        await colRef.doc(editingItem.id).update({
+                            ...form,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        showToast("Updated online");
+                    } else {
+                        await colRef.add({
+                            ...form,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        showToast("Saved to cloud");
+                    }
+                    setShowForm(false);
+                    setEditingItem(null);
+                    setForm({ category: "", scenario: "", message: "", section: "" });
+                } catch (err) { 
+                    console.error(err);
+                    showToast("Save failed", "error"); 
+                }
+            };
 
+            const handleDelete = async (id, e) => {
+                e.stopPropagation();
+                if (!isAdmin || !confirm("Delete this permanently?")) return;
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
+                    showToast("Deleted");
+                } catch (err) { showToast("Delete failed", "error"); }
+            };
+
+            const handleImport = (e) => {
+                const file = e.target.files[0];
+                if (!file || !isAdmin) return;
+                const reader = new FileReader();
                 reader.onload = async (evt) => {
                     try {
-                        const bstr = evt.target.result;
-                        const wb = XLSX.read(bstr, { type: 'binary' });
-                        const collectionRef = db.collection(`artifacts/${appId}/public/data/responses`);
-                        
-                        let importCount = 0;
-                        for (const sheetName of wb.SheetNames) {
-                            const jsonData = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
-                            for (const row of jsonData) {
+                        const wb = XLSX.read(evt.target.result, { type: 'binary' });
+                        const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                        let count = 0;
+                        for (const sheet of wb.SheetNames) {
+                            const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
+                            for (const row of rows) {
                                 const keys = Object.keys(row);
-                                const scenario = String(row[keys.find(k => k.toLowerCase().includes('scenario'))] || keys[0] || "Untitled");
-                                const message = String(row[keys.find(k => k.toLowerCase().includes('message'))] || "");
-                                const section = String(row[keys.find(k => k.toLowerCase().includes('section'))] || "");
-                                
+                                const scenario = row[keys.find(k => k.toLowerCase().includes('scenario'))] || "Untitled";
+                                const message = row[keys.find(k => k.toLowerCase().includes('message'))] || "";
                                 if (message) {
-                                    await collectionRef.add({
-                                        scenario,
-                                        message,
-                                        section,
-                                        category: sheetName,
+                                    await colRef.add({
+                                        category: sheet,
+                                        scenario: String(scenario),
+                                        message: String(message),
+                                        section: String(row.Section || ""),
                                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                                     });
-                                    importCount++;
+                                    count++;
                                 }
                             }
                         }
-                        showToast(`Imported ${importCount} items to cloud`, "success");
-                    } catch (err) { 
-                        console.error(err);
-                        showToast("Import failed", "error"); 
-                    }
+                        showToast(`Imported ${count} items`);
+                    } catch (err) { showToast("Import failed", "error"); }
                 };
                 reader.readAsBinaryString(file);
             };
 
-            const handleFormSubmit = async (e) => {
-                e.preventDefault();
-                if (!isAdmin || !user) return;
-                
-                const collectionRef = db.collection(`artifacts/${appId}/public/data/responses`);
-                
-                try {
-                    if (editingId) {
-                        await collectionRef.doc(editingId).update({
-                            ...formEntry,
-                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                        showToast("Response updated online", "success");
-                    } else {
-                        await collectionRef.add({
-                            ...formEntry,
-                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                        showToast("Response added to cloud", "success");
-                    }
-                    resetForm();
-                } catch (err) {
-                    showToast("Save failed", "error");
-                }
-            };
-
-            const resetForm = () => {
-                setFormEntry({ scenario: "", message: "", category: "", section: "" });
-                setEditingId(null);
-                setShowForm(false);
-            };
-
-            const startEdit = (item, e) => {
-                e.stopPropagation();
-                if (!isAdmin) return;
-                setEditingId(item.id);
-                setFormEntry({ 
-                    scenario: item.scenario, 
-                    message: item.message, 
-                    category: item.category, 
-                    section: item.section 
-                });
-                setShowForm(true);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            };
-
-            const deleteEntry = async (id, e) => {
-                e.stopPropagation();
-                if (!isAdmin || !user) return;
-                if (confirm("Permanently delete this from the cloud?")) {
-                    try {
-                        await db.doc(`artifacts/${appId}/public/data/responses/${id}`).delete();
-                        showToast("Deleted from cloud", "success");
-                    } catch (err) {
-                        showToast("Delete failed", "error");
-                    }
-                }
-            };
-
-            const handleCopy = (text) => {
-                navigator.clipboard.writeText(text).then(() => {
-                    showToast("Copied!", "success");
-                });
-            };
-
-            const showToast = (msg, type = "success") => {
-                setToast({ show: true, message: msg, type });
-                setTimeout(() => setToast({ show: false, message: "" }), 2000);
-            };
-
-            const filteredData = data.filter(item => {
-                const matchSearch = item.scenario.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                    item.message.toLowerCase().includes(searchTerm.toLowerCase());
-                const matchCat = activeCategory === "All" || item.category === activeCategory;
-                return matchSearch && matchCat;
+            const filtered = data.filter(item => {
+                const s = searchTerm.toLowerCase();
+                const matchesSearch = (item.scenario || "").toLowerCase().includes(s) || (item.message || "").toLowerCase().includes(s);
+                const matchesCat = activeCategory === "All" || item.category === activeCategory;
+                return matchesSearch && matchesCat;
             });
 
-            return (
-                <div className="min-h-screen pb-12 flex flex-col">
-                    <header className="fixed top-0 left-0 right-0 z-40 glass-panel border-b border-slate-200/50">
-                        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-slate-900 text-white p-2 rounded-xl shadow-lg">
-                                    <i data-lucide="layout-grid" className="w-5 h-5"></i>
+            // Grouping Logic
+            const sections = useMemo(() => {
+                const groups = {};
+                const noSection = [];
+                filtered.forEach(item => {
+                    if (item.section && item.section.trim()) {
+                        if (!groups[item.section]) groups[item.section] = [];
+                        groups[item.section].push(item);
+                    } else {
+                        noSection.push(item);
+                    }
+                });
+                return { groups, sortedKeys: Object.keys(groups).sort(), noSection };
+            }, [filtered]);
+
+            // Rendering Cards
+            const RenderCard = ({ item }) => {
+                const theme = categories.find(c => c.name === item.category)?.theme || THEMES[0];
+                return (
+                    <div 
+                        onClick={() => { navigator.clipboard.writeText(item.message); showToast("Copied!"); }}
+                        className="group bg-white p-5 rounded-2xl shadow-card border border-transparent hover:border-slate-200 hover:shadow-lg transition-all cursor-pointer relative flex flex-col h-full overflow-hidden"
+                    >
+                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${theme.bg.replace('bg-', 'bg-')}-500`}></div>
+                        <div className="flex justify-between items-start mb-3 pl-2">
+                            <div className="flex flex-col gap-1">
+                                <span className={`w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${theme.bg} ${theme.text}`}>
+                                    {item.category}
+                                </span>
+                                <h3 className="font-bold text-slate-800 leading-snug">{item.scenario}</h3>
+                            </div>
+                            {isAdmin && (
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={(e) => { e.stopPropagation(); setEditingItem(item); setForm(item); setShowForm(true); }} className="p-1.5 hover:bg-slate-100 rounded text-slate-400"><Icons.Edit /></button>
+                                    <button onClick={(e) => handleDelete(item.id, e)} className="p-1.5 hover:bg-red-50 rounded text-red-400"><Icons.Trash /></button>
                                 </div>
-                                <div>
-                                    <h1 className="font-bold text-slate-800 text-lg leading-none">Response Hub</h1>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 flex items-center gap-1">
-                                        <span className={`w-1.5 h-1.5 rounded-full ${user ? 'bg-emerald-400' : 'bg-slate-300'}`}></span>
-                                        {isAdmin ? "Admin (Online)" : "Agent View (Cloud)" }
+                            )}
+                        </div>
+                        <p className="text-slate-500 text-sm line-clamp-4 leading-relaxed mb-4 pl-2 whitespace-pre-wrap">{item.message}</p>
+                        <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase pl-2">
+                            <span>Tap to copy</span>
+                            <Icons.Copy className="w-3 h-3" />
+                        </div>
+                    </div>
+                );
+            };
+
+            if (!auth) return <div className="p-10 text-center text-red-500 font-bold">Error: Firebase Configuration Missing</div>;
+
+            return (
+                <div className="min-h-screen flex flex-col bg-[#f8fafc]">
+                    <header className="fixed top-0 w-full z-50 glass px-4 md:px-8 py-4">
+                        <div className="max-w-7xl mx-auto flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-indigo-600 p-2 rounded-lg text-white shadow-lg shadow-indigo-100">
+                                    <Icons.Zap />
+                                </div>
+                                <div className="hidden sm:block">
+                                    <h1 className="font-bold text-slate-900 leading-none">Response Hub</h1>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                        {user ? (isAdmin ? 'Admin View' : 'Live Sync On') : 'Connecting...'}
                                     </p>
                                 </div>
                             </div>
-                            
-                            <div className="flex items-center gap-2">
+
+                            <div className="flex gap-2">
                                 {isAdmin ? (
                                     <>
-                                        <button onClick={() => fileInputRef.current.click()} className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-all" title="Cloud Import"><i data-lucide="upload" className="w-5 h-5"></i></button>
-                                        <button onClick={() => { resetForm(); setShowForm(!showForm); }} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all active:scale-95">
-                                            <i data-lucide={showForm ? "x" : "plus"} className="w-4 h-4"></i>
-                                            <span>{showForm ? "Close" : "New"}</span>
+                                        <button onClick={() => fileInput.current.click()} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors" title="Import Excel"><Icons.Upload /></button>
+                                        <button onClick={() => { setShowForm(!showForm); setEditingItem(null); }} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-black transition-all">
+                                            {showForm ? <Icons.X /> : <Icons.Plus />}
+                                            <span className="hidden xs:inline">{showForm ? "Cancel" : "New Entry"}</span>
                                         </button>
-                                        <button onClick={toggleAdmin} className="p-2.5 text-emerald-600 bg-emerald-50 rounded-xl border border-emerald-100" title="Exit Admin"><i data-lucide="unlock" className="w-5 h-5"></i></button>
+                                        <button onClick={toggleAdmin} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Unlock /></button>
                                     </>
                                 ) : (
-                                    <button onClick={toggleAdmin} className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
-                                        <i data-lucide="lock" className="w-4 h-4"></i>
-                                        <span className="hidden sm:inline">Admin Login</span>
+                                    <button onClick={toggleAdmin} className="px-4 py-2 text-slate-400 hover:text-slate-600 rounded-lg flex items-center gap-2 text-xs font-bold transition-colors">
+                                        <Icons.Lock /> Admin Login
                                     </button>
                                 )}
-                                <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                                <input type="file" ref={fileInput} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
                             </div>
                         </div>
                     </header>
 
-                    <main className="max-w-7xl mx-auto px-4 pt-24 pb-8 w-full flex-grow space-y-8">
-                        <div className="space-y-6">
-                            <div className="flex flex-wrap gap-2">
-                                {categoryData.map(cat => (
-                                    <button key={cat.name} onClick={() => setActiveCategory(cat.name)} className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${activeCategory === cat.name ? `${cat.theme.bg} ${cat.theme.text} ${cat.theme.border}` : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300'}`}>
+                    <main className="max-w-7xl mx-auto w-full px-4 md:px-8 pt-24 pb-12 flex-grow">
+                        <div className="mb-8 space-y-6">
+                            <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                {categories.map(cat => (
+                                    <button 
+                                        key={cat.name} 
+                                        onClick={() => setActiveCategory(cat.name)}
+                                        className={`px-5 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${activeCategory === cat.name ? `${cat.theme.bg} ${cat.theme.text} ${cat.theme.border}` : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}
+                                    >
                                         {cat.name}
                                     </button>
                                 ))}
                             </div>
                             <div className="relative group">
-                                <i data-lucide="search" className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
-                                <input type="text" className="w-full pl-14 pr-6 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-slate-50 transition-all text-lg font-medium" placeholder="Search global responses..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300"><Icons.Search /></div>
+                                <input 
+                                    type="text" 
+                                    placeholder="Search library..." 
+                                    className="w-full pl-14 pr-10 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-indigo-50 transition-all text-lg shadow-sm"
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                />
+                                {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><Icons.X /></button>}
                             </div>
                         </div>
 
                         {showForm && isAdmin && (
-                            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl animate-fade-in">
-                                <form onSubmit={handleFormSubmit} className="space-y-4">
+                            <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 mb-8 shadow-xl animate-in">
+                                <h2 className="text-xl font-bold mb-6">{editingItem ? "Edit Response" : "New Response"}</h2>
+                                <form onSubmit={handleSave} className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <input className="w-full p-3 bg-slate-50 rounded-xl text-sm border border-slate-100 focus:bg-white outline-none" placeholder="Category" value={formEntry.category} onChange={e => setFormEntry({...formEntry, category: e.target.value})} required />
-                                        <input className="w-full p-3 bg-slate-50 rounded-xl text-sm border border-slate-100 focus:bg-white outline-none" placeholder="Section" value={formEntry.section} onChange={e => setFormEntry({...formEntry, section: e.target.value})} />
-                                        <input className="w-full p-3 bg-slate-50 rounded-xl text-sm border border-slate-100 focus:bg-white outline-none" placeholder="Scenario Title" value={formEntry.scenario} onChange={e => setFormEntry({...formEntry, scenario: e.target.value})} required />
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Category" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Section (Optional)" value={form.section} onChange={e => setForm({...form, section: e.target.value})} />
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Scenario Title" value={form.scenario} onChange={e => setForm({...form, scenario: e.target.value})} required />
                                     </div>
-                                    <textarea className="w-full p-3 bg-slate-50 rounded-xl text-sm border border-slate-100 focus:bg-white outline-none min-h-[150px]" placeholder="Response content..." value={formEntry.message} onChange={e => setFormEntry({...formEntry, message: e.target.value})} required />
-                                    <div className="flex justify-end gap-2">
-                                        <button type="button" onClick={resetForm} className="px-6 py-2 text-slate-400 font-bold">Cancel</button>
-                                        <button type="submit" className="px-6 py-2 bg-slate-900 text-white rounded-xl font-bold shadow-lg flex items-center gap-2">
-                                            <i data-lucide="save" className="w-4 h-4"></i>
-                                            Save to Cloud
-                                        </button>
+                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 h-32 resize-none" placeholder="Message content..." value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
+                                    <div className="flex justify-end gap-3">
+                                        <button type="button" onClick={() => setShowForm(false)} className="px-6 py-3 text-slate-400 font-bold">Cancel</button>
+                                        <button type="submit" className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-indigo-100">Save to Cloud</button>
                                     </div>
                                 </form>
                             </div>
                         )}
 
                         {loading ? (
-                            <div className="py-20 text-center space-y-4">
-                                <div className="w-12 h-12 border-4 border-slate-200 border-t-slate-900 rounded-full animate-spin mx-auto"></div>
-                                <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">Fetching Cloud Library...</p>
+                            <div className="py-32 text-center">
+                                <div className="loader mx-auto mb-6"></div>
+                                <p className="text-slate-400 font-bold text-xs tracking-widest uppercase animate-pulse">Establishing Cloud Link...</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredData.map(item => {
-                                    const theme = (categoryData.find(c => c.name === item.category) || {theme: THEMES[0]}).theme;
-                                    return (
-                                        <div key={item.id} onClick={() => handleCopy(item.message)} className="group bg-white rounded-2xl p-6 cursor-pointer border border-slate-100 shadow-card hover:shadow-xl transition-all relative flex flex-col h-full overflow-hidden">
-                                            <div className={`absolute left-0 top-0 bottom-0 w-1 ${theme.text.replace('text-', 'bg-')}`}></div>
-                                            <div className="flex justify-between items-start mb-3">
-                                                <div className="flex flex-wrap gap-1">
-                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${theme.bg} ${theme.text}`}>{item.category}</span>
-                                                    {item.section && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-400 uppercase">{item.section}</span>}
-                                                </div>
-                                                {isAdmin && (
-                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={(e) => startEdit(item, e)} className="p-1.5 hover:bg-slate-100 rounded text-slate-400"><i data-lucide="edit-3" className="w-3.5 h-3.5"></i></button>
-                                                        <button onClick={(e) => deleteEntry(item.id, e)} className="p-1.5 hover:bg-rose-50 rounded text-rose-400"><i data-lucide="trash-2" className="w-3.5 h-3.5"></i></button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <h3 className="font-bold text-slate-800 mb-2 leading-tight">{item.scenario}</h3>
-                                            <p className="text-slate-500 text-sm flex-grow line-clamp-5 leading-relaxed">{item.message}</p>
-                                            <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-center text-[10px] font-black tracking-widest text-slate-300 uppercase">
-                                                <span>Click to copy</span>
-                                                <i data-lucide="copy" className="w-3 h-3"></i>
-                                            </div>
+                            <div className="space-y-10">
+                                {/* Ungrouped Items */}
+                                {sections.noSection.length > 0 && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in">
+                                        {sections.noSection.map(item => <RenderCard key={item.id} item={item} />)}
+                                    </div>
+                                )}
+
+                                {/* Grouped Sections */}
+                                {sections.sortedKeys.map(key => (
+                                    <div key={key} className="space-y-4 animate-in">
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{key}</span>
+                                            <div className="h-px bg-slate-200 w-full"></div>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                        
-                        {!loading && filteredData.length === 0 && (
-                            <div className="py-20 text-center">
-                                <p className="text-slate-400 font-medium italic">No cloud responses found matching your search.</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {sections.groups[key].map(item => <RenderCard key={item.id} item={item} />)}
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {filtered.length === 0 && (
+                                    <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl">
+                                        <Icons.Cloud className="w-10 h-10 text-slate-300 mx-auto mb-4" />
+                                        <p className="text-slate-400 text-sm font-medium">Library is empty. Switch to Admin to add data.</p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </main>
 
-                    <footer className="mt-auto py-10 text-center border-t border-slate-100">
-                        <div className="flex items-center justify-center gap-2 text-slate-400 font-medium text-sm">
-                            <span>Created by Ali Abo Ali</span>
-                            <i data-lucide="heart" className="w-3.5 h-3.5 text-rose-400 fill-current"></i>
-                        </div>
-                    </footer>
-
                     {toast.show && (
-                        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 animate-fade-in">
-                            <i data-lucide={toast.type === "error" ? "x-circle" : "check"} className={`w-4 h-4 ${toast.type === "error" ? "text-rose-400" : "text-emerald-400"}`}></i>
-                            <span className="text-xs font-bold uppercase tracking-widest">{toast.message}</span>
+                        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in">
+                            <div className={`px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 text-white ${toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900'}`}>
+                                <Icons.Check />
+                                <span className="text-xs font-bold uppercase tracking-wider">{toast.message}</span>
+                            </div>
                         </div>
                     )}
+
+                    <footer className="py-8 text-center border-t border-slate-200">
+                        <div className="text-slate-400 text-xs font-medium flex items-center justify-center gap-2">
+                            <span>Created by Ali Abo Ali</span>
+                            <Icons.Heart />
+                        </div>
+                    </footer>
                 </div>
             );
         };
