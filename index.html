@@ -71,16 +71,32 @@
 
         // --- Firebase Config & Shared Paths ---
         let app, auth, db, appId, isCloudAvailable = false;
+        
+        // Manual Config fallback if __firebase_config environment is missing
+        const manualFirebaseConfig = {
+            apiKey: "AIzaSyCkWkxeidV9x8BvNGD-jcmL44ha4vHHlf8",
+            authDomain: "respondhub-c4641.firebaseapp.com",
+            projectId: "respondhub-c4641",
+            storageBucket: "respondhub-c4641.firebasestorage.app",
+            messagingSenderId: "682357623707",
+            appId: "1:682357623707:web:e256f3ab48219bbfdfaf3e",
+            measurementId: "G-TLKTF1JK6N"
+        };
+
         try {
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                const config = JSON.parse(__firebase_config);
-                app = firebase.initializeApp(config);
-                auth = firebase.auth();
-                db = firebase.firestore();
-                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
-                isCloudAvailable = true;
-            }
-        } catch (e) { console.log("Local Mode Active"); }
+            const config = (typeof __firebase_config !== 'undefined' && __firebase_config) 
+                ? JSON.parse(__firebase_config) 
+                : manualFirebaseConfig;
+            
+            app = firebase.initializeApp(config);
+            auth = firebase.auth();
+            db = firebase.firestore();
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'respondhub-c4641-default';
+            isCloudAvailable = true;
+        } catch (e) { 
+            console.error("Firebase Initialization Error:", e);
+            console.log("Local Mode Active"); 
+        }
 
         // Mandatory path per Rule 1
         const getResponsesCol = () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
@@ -125,6 +141,7 @@
                             await auth.signInAnonymously();
                         }
                     } catch (e) { 
+                        console.error("Auth Error:", e);
                         setIsLocalMode(true);
                         setLoading(false);
                     }
@@ -202,7 +219,6 @@
                     } else {
                         const colRef = getResponsesCol();
                         if (editingItem) {
-                            // Path FIX: Use editingItem.id specifically
                             await colRef.doc(editingItem.id).update(payload);
                             showToast("Cloud update successful");
                         } else {
