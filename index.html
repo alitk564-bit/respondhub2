@@ -33,7 +33,7 @@
 
     <style>
         body { background-color: #f8fafc; color: #1e293b; overflow-x: hidden; }
-        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid #e2e8f0; }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 50; }
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .animate-in { animation: fadeIn 0.4s ease-out; }
@@ -47,7 +47,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- ICONS (Inline for stability) ---
+        // --- ICONS ---
         const Icon = ({ path, className = "w-5 h-5" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 {path}
@@ -66,12 +66,10 @@
             Zap: () => <Icon path={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />,
             Cloud: () => <Icon path={<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>} />,
             Copy: () => <Icon path={<><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>} />,
-            Save: () => <Icon path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>} />,
-            Heart: () => <Icon className="w-3 h-3 text-rose-400 fill-current" path={<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.0 0 0 0-7.78z"/>} />,
             HardDrive: () => <Icon path={<><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></>} />
         };
 
-        // --- Firebase Config Check & Init ---
+        // --- Firebase Config & Shared Paths ---
         let app, auth, db, appId, isCloudAvailable = false;
         try {
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
@@ -82,18 +80,18 @@
                 appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
                 isCloudAvailable = true;
             }
-        } catch (e) {
-            console.log("Running in Local Mode (Cloud config missing or invalid)");
-        }
+        } catch (e) { console.log("Local Mode Active"); }
 
-        // --- Constants ---
+        // Mandatory path per Rule 1
+        const getResponsesCol = () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+
         const THEMES = [
-            { id: 'blue', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', ring: 'ring-blue-500' },
-            { id: 'violet', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', ring: 'ring-violet-500' },
-            { id: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', ring: 'ring-emerald-500' },
-            { id: 'amber', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', ring: 'ring-amber-500' },
-            { id: 'rose', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', ring: 'ring-rose-500' },
-            { id: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', ring: 'ring-indigo-500' },
+            { id: 'blue', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', side: 'bg-blue-500' },
+            { id: 'violet', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', side: 'bg-violet-500' },
+            { id: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', side: 'bg-emerald-500' },
+            { id: 'amber', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', side: 'bg-amber-500' },
+            { id: 'rose', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', side: 'bg-rose-500' },
+            { id: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', side: 'bg-indigo-500' },
         ];
 
         const App = () => {
@@ -108,10 +106,9 @@
             const [editingItem, setEditingItem] = useState(null);
             const [toast, setToast] = useState({ show: false, message: "", type: "success" });
             const [form, setForm] = useState({ category: "", scenario: "", message: "", section: "" });
-            
             const fileInput = useRef(null);
 
-            // 1. Auth Init (Only if cloud available)
+            // 1. Auth Initialization
             useEffect(() => {
                 if (!isCloudAvailable) {
                     setLoading(false);
@@ -128,7 +125,6 @@
                             await auth.signInAnonymously();
                         }
                     } catch (e) { 
-                        console.error("Auth error, switching to local", e);
                         setIsLocalMode(true);
                         setLoading(false);
                     }
@@ -138,37 +134,28 @@
                 return () => unsubscribe();
             }, []);
 
-            // 2. Data Sync
+            // 2. Real-time Cloud Sync
             useEffect(() => {
-                if (isLocalMode) return;
-                if (!user || !db) return;
+                if (isLocalMode || !user) return;
                 
-                const unsubscribe = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses')
-                    .onSnapshot((snapshot) => {
-                        const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        setData(items);
-                        setLoading(false);
-                    }, (error) => {
-                        console.error("Sync error, falling back to local", error);
-                        setIsLocalMode(true);
-                        setLoading(false);
-                        const localData = localStorage.getItem('agent_helper_data');
-                        if(localData) setData(JSON.parse(localData));
-                    });
+                // Listener for global data
+                const unsubscribe = getResponsesCol().onSnapshot((snapshot) => {
+                    const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setData(items);
+                    setLoading(false);
+                }, (err) => {
+                    console.error("Sync failed:", err);
+                    setIsLocalMode(true);
+                    setLoading(false);
+                });
                 return () => unsubscribe();
             }, [user, isLocalMode]);
 
-            // Computed
             const categories = useMemo(() => {
                 const unique = ["All", ...new Set(data.map(d => d.category))];
                 return unique.map((name, i) => ({ name, theme: THEMES[i % THEMES.length] }));
             }, [data]);
 
-            const activeTheme = useMemo(() => {
-                return categories.find(c => c.name === activeCategory)?.theme || THEMES[0];
-            }, [categories, activeCategory]);
-
-            // Handlers
             const showToast = (msg, type = "success") => {
                 setToast({ show: true, message: msg, type });
                 setTimeout(() => setToast({ show: false, message: "", type: "success" }), 2500);
@@ -183,15 +170,8 @@
                     if (pw === "ALM989$100%") {
                         setIsAdmin(true);
                         showToast("Admin Mode Active");
-                    } else if (pw !== null) {
-                        showToast("Incorrect Password", "error");
-                    }
+                    } else if (pw !== null) showToast("Incorrect Password", "error");
                 }
-            };
-
-            const saveLocally = (newData) => {
-                setData(newData);
-                localStorage.setItem('agent_helper_data', JSON.stringify(newData));
             };
 
             const handleSave = async (e) => {
@@ -199,38 +179,45 @@
                 if (!isAdmin) return;
                 
                 try {
+                    const payload = {
+                        category: form.category.trim(),
+                        scenario: form.scenario.trim(),
+                        message: form.message.trim(),
+                        section: (form.section || "").trim(),
+                        updatedAt: isLocalMode ? new Date().toISOString() : firebase.firestore.FieldValue.serverTimestamp()
+                    };
+
                     if (isLocalMode) {
                         let updated;
                         if (editingItem) {
-                            updated = data.map(i => i.id === editingItem.id ? { ...i, ...form } : i);
+                            updated = data.map(i => i.id === editingItem.id ? { ...i, ...payload } : i);
                             showToast("Updated locally");
                         } else {
-                            updated = [{ ...form, id: Date.now().toString() }, ...data];
+                            const newItem = { ...payload, id: Date.now().toString(), createdAt: new Date().toISOString() };
+                            updated = [newItem, ...data];
                             showToast("Saved locally");
                         }
-                        saveLocally(updated);
+                        setData(updated);
+                        localStorage.setItem('agent_helper_data', JSON.stringify(updated));
                     } else {
-                        const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                        const colRef = getResponsesCol();
                         if (editingItem) {
-                            await colRef.doc(editingItem.id).update({
-                                ...form,
-                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                            });
-                            showToast("Updated online");
+                            // Path FIX: Use editingItem.id specifically
+                            await colRef.doc(editingItem.id).update(payload);
+                            showToast("Cloud update successful");
                         } else {
                             await colRef.add({
-                                ...form,
+                                ...payload,
                                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
                             });
-                            showToast("Saved to cloud");
+                            showToast("Cloud save successful");
                         }
                     }
                     setShowForm(false);
                     setEditingItem(null);
                     setForm({ category: "", scenario: "", message: "", section: "" });
-                } catch (err) { 
-                    console.error(err);
-                    showToast("Save failed", "error"); 
+                } catch (err) {
+                    showToast("Cloud sync failed. Check connection.", "error");
                 }
             };
 
@@ -240,11 +227,12 @@
                 
                 if (isLocalMode) {
                     const updated = data.filter(i => i.id !== id);
-                    saveLocally(updated);
+                    setData(updated);
+                    localStorage.setItem('agent_helper_data', JSON.stringify(updated));
                     showToast("Deleted locally");
                 } else {
                     try {
-                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
+                        await getResponsesCol().doc(id).delete();
                         showToast("Deleted from cloud");
                     } catch (err) { showToast("Delete failed", "error"); }
                 }
@@ -252,35 +240,25 @@
 
             const handleRemoveAll = async () => {
                 if (!isAdmin) return;
-                
                 const targetItems = activeCategory === "All" ? data : data.filter(i => i.category === activeCategory);
                 if (targetItems.length === 0) return;
-
-                if (!confirm(`Are you sure you want to delete ALL ${targetItems.length} items in "${activeCategory}"? This action cannot be undone.`)) return;
+                if (!confirm(`Clear ALL ${targetItems.length} items in "${activeCategory}"?`)) return;
                 
                 setLoading(true);
                 try {
                     if (isLocalMode) {
                         const updated = activeCategory === "All" ? [] : data.filter(i => i.category !== activeCategory);
-                        saveLocally(updated);
-                        showToast(`Cleared ${targetItems.length} items locally`);
+                        setData(updated);
+                        localStorage.setItem('agent_helper_data', JSON.stringify(updated));
                     } else {
                         const batch = db.batch();
-                        const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
-                        
-                        targetItems.forEach(item => {
-                            batch.delete(colRef.doc(item.id));
-                        });
-                        
+                        const colRef = getResponsesCol();
+                        targetItems.forEach(item => batch.delete(colRef.doc(item.id)));
                         await batch.commit();
-                        showToast(`Cleared ${targetItems.length} items from cloud`);
                     }
-                } catch (err) {
-                    console.error(err);
-                    showToast("Failed to clear data", "error");
-                } finally {
-                    setLoading(false);
-                }
+                    showToast("Clear complete");
+                } catch (err) { showToast("Clear failed", "error"); }
+                setLoading(false);
             };
 
             const handleImport = (e) => {
@@ -290,43 +268,33 @@
                 reader.onload = async (evt) => {
                     try {
                         const wb = XLSX.read(evt.target.result, { type: 'binary' });
-                        let newItems = [];
                         let count = 0;
-                        const colRef = !isLocalMode ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses') : null;
-
-                        for (const sheet of wb.SheetNames) {
-                            const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
+                        for (const sheetName of wb.SheetNames) {
+                            const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
                             for (const row of rows) {
-                                const keys = Object.keys(row);
-                                const scenario = row[keys.find(k => k.toLowerCase().includes('scenario'))] || "Untitled";
-                                const message = row[keys.find(k => k.toLowerCase().includes('message'))] || "";
-                                
-                                if (message) {
-                                    const entry = {
-                                        category: sheet,
-                                        scenario: String(scenario),
-                                        message: String(message),
-                                        section: String(row.Section || ""),
-                                        createdAt: new Date().toISOString()
-                                    };
-
+                                const payload = {
+                                    category: sheetName,
+                                    scenario: row.Scenario || row.scenario || "Untitled",
+                                    message: row.Message || row.message || "",
+                                    section: row.Section || row.section || "",
+                                    createdAt: isLocalMode ? new Date().toISOString() : firebase.firestore.FieldValue.serverTimestamp()
+                                };
+                                if (payload.message) {
                                     if (isLocalMode) {
-                                        entry.id = `local-${Date.now()}-${count}`;
-                                        newItems.push(entry);
+                                        data.push({ ...payload, id: Date.now() + Math.random().toString() });
                                     } else {
-                                        await colRef.add({
-                                            ...entry,
-                                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                                        });
+                                        await getResponsesCol().add(payload);
                                     }
                                     count++;
                                 }
                             }
                         }
-                        
-                        if (isLocalMode) saveLocally([...newItems, ...data]);
+                        if (isLocalMode) {
+                            setData([...data]);
+                            localStorage.setItem('agent_helper_data', JSON.stringify(data));
+                        }
                         showToast(`Imported ${count} items`);
-                    } catch (err) { showToast("Import failed", "error"); }
+                    } catch (err) { showToast("Import Error", "error"); }
                 };
                 reader.readAsBinaryString(file);
             };
@@ -345,9 +313,7 @@
                     if (item.section && item.section.trim()) {
                         if (!groups[item.section]) groups[item.section] = [];
                         groups[item.section].push(item);
-                    } else {
-                        noSection.push(item);
-                    }
+                    } else noSection.push(item);
                 });
                 return { groups, sortedKeys: Object.keys(groups).sort(), noSection };
             }, [filtered]);
@@ -357,9 +323,9 @@
                 return (
                     <div 
                         onClick={() => { navigator.clipboard.writeText(item.message); showToast("Copied!"); }}
-                        className="group bg-white p-5 rounded-2xl shadow-card border border-transparent hover:border-slate-200 hover:shadow-lg transition-all cursor-pointer relative flex flex-col h-full overflow-hidden"
+                        className="group bg-white p-5 rounded-2xl shadow-card border border-transparent hover:border-slate-200 hover:shadow-lg transition-all cursor-pointer relative flex flex-col h-full overflow-hidden animate-in"
                     >
-                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${theme.bg.replace('bg-', 'bg-')}-500`}></div>
+                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${theme.side}`}></div>
                         <div className="flex justify-between items-start mb-3 pl-2">
                             <div className="flex flex-col gap-1">
                                 <span className={`w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${theme.bg} ${theme.text}`}>
@@ -376,7 +342,7 @@
                         </div>
                         <p className="text-slate-500 text-sm line-clamp-4 leading-relaxed mb-4 pl-2 whitespace-pre-wrap">{item.message}</p>
                         <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase pl-2">
-                            <span>Tap to copy</span>
+                            <span>Click to copy</span>
                             <Icons.Copy className="w-3 h-3" />
                         </div>
                     </div>
@@ -385,16 +351,16 @@
 
             return (
                 <div className="min-h-screen flex flex-col bg-[#f8fafc]">
-                    <header className="fixed top-0 w-full z-50 glass px-4 md:px-8 py-4">
+                    <header className="glass px-4 md:px-8 py-4">
                         <div className="max-w-7xl mx-auto flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg text-white shadow-lg shadow-indigo-100 ${isLocalMode ? 'bg-slate-600' : 'bg-indigo-600'}`}>
+                                <div className={`p-2 rounded-lg text-white shadow-lg ${isLocalMode ? 'bg-slate-600' : 'bg-indigo-600'}`}>
                                     {isLocalMode ? <Icons.HardDrive /> : <Icons.Zap />}
                                 </div>
                                 <div className="hidden sm:block">
                                     <h1 className="font-bold text-slate-900 leading-none">Response Hub</h1>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                                        {isLocalMode ? "Local Storage Mode" : (user ? (isAdmin ? 'Admin View' : 'Live Sync On') : 'Connecting...')}
+                                        {isLocalMode ? "Local/Offline" : (isAdmin ? 'Admin • Cloud Live' : 'Public • Cloud Live')}
                                     </p>
                                 </div>
                             </div>
@@ -402,73 +368,60 @@
                             <div className="flex gap-2">
                                 {isAdmin ? (
                                     <>
-                                        <button onClick={() => fileInput.current.click()} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors" title="Import Excel"><Icons.Upload /></button>
-                                        
-                                        <button 
-                                            onClick={handleRemoveAll} 
-                                            disabled={filtered.length === 0}
-                                            className="hidden sm:flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                                            title="Remove all in current category"
-                                        >
-                                            <Icons.Trash className="w-4 h-4" />
-                                            <span>Clear All</span>
-                                        </button>
-
-                                        <button onClick={() => { setShowForm(!showForm); setEditingItem(null); }} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-black transition-all">
-                                            {showForm ? <Icons.X /> : <Icons.Plus />}
-                                            <span className="hidden xs:inline">{showForm ? "Cancel" : "New Entry"}</span>
+                                        <button onClick={() => fileInput.current.click()} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg" title="Import"><Icons.Upload /></button>
+                                        <button onClick={handleRemoveAll} disabled={filtered.length === 0} className="hidden sm:flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg text-xs font-bold disabled:opacity-30"><Icons.Trash className="w-4 h-4" /> Clear All</button>
+                                        <button onClick={() => { setShowForm(!showForm); setEditingItem(null); setForm({category:'',scenario:'',message:'',section:''}); }} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+                                            {showForm ? <Icons.X /> : <Icons.Plus />} {showForm ? "Close" : "New"}
                                         </button>
                                         <button onClick={toggleAdmin} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Unlock /></button>
                                     </>
                                 ) : (
-                                    <button onClick={toggleAdmin} className="px-4 py-2 text-slate-400 hover:text-slate-600 rounded-lg flex items-center gap-2 text-xs font-bold transition-colors">
-                                        <Icons.Lock /> Admin Login
-                                    </button>
+                                    <button onClick={toggleAdmin} className="px-4 py-2 text-slate-400 hover:text-slate-600 rounded-lg flex items-center gap-2 text-xs font-bold"><Icons.Lock /> Admin</button>
                                 )}
                                 <input type="file" ref={fileInput} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
                             </div>
                         </div>
                     </header>
 
-                    <main className="max-w-7xl mx-auto w-full px-4 md:px-8 pt-24 pb-12 flex-grow">
+                    <main className="max-w-7xl mx-auto w-full px-4 md:px-8 py-8 flex-grow">
                         <div className="mb-8 space-y-6">
                             <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 scrollbar-hide">
                                 {categories.map(cat => (
                                     <button 
                                         key={cat.name} 
                                         onClick={() => setActiveCategory(cat.name)}
-                                        className={`px-5 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${activeCategory === cat.name ? `${cat.theme.bg} ${cat.theme.text} ${cat.theme.border}` : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}
+                                        className={`px-5 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${activeCategory === cat.name ? `${cat.theme.bg} ${cat.theme.text} ${cat.theme.border}` : 'bg-white border-slate-200 text-slate-400'}`}
                                     >
                                         {cat.name}
                                     </button>
                                 ))}
                             </div>
-                            <div className="relative group">
+                            <div className="relative">
                                 <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300"><Icons.Search /></div>
                                 <input 
                                     type="text" 
-                                    placeholder="Search library..." 
-                                    className="w-full pl-14 pr-10 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-indigo-50 transition-all text-lg shadow-sm"
+                                    placeholder="Search responses..." 
+                                    className="w-full pl-14 pr-10 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-indigo-50 transition-all shadow-sm"
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
                                 />
-                                {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><Icons.X /></button>}
                             </div>
                         </div>
 
                         {showForm && isAdmin && (
-                            <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 mb-8 shadow-xl animate-in">
-                                <h2 className="text-xl font-bold mb-6">{editingItem ? "Edit Response" : "New Response"}</h2>
+                            <div className="bg-white border border-slate-200 rounded-3xl p-6 mb-8 shadow-xl animate-in">
+                                <h2 className="text-xl font-bold mb-6">{editingItem ? "Edit Response" : "Create New"}</h2>
                                 <form onSubmit={handleSave} className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Category" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Category (e.g. Sales)" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
                                         <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Section (Optional)" value={form.section} onChange={e => setForm({...form, section: e.target.value})} />
                                         <input className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100" placeholder="Scenario Title" value={form.scenario} onChange={e => setForm({...form, scenario: e.target.value})} required />
                                     </div>
-                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 h-32 resize-none" placeholder="Message content..." value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
+                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border border-slate-100 h-32" placeholder="The response message..." value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
                                     <div className="flex justify-end gap-3">
-                                        <button type="button" onClick={() => setShowForm(false)} className="px-6 py-3 text-slate-400 font-bold">Cancel</button>
-                                        <button type="submit" className={`text-white px-8 py-3 rounded-xl font-bold shadow-lg ${isLocalMode ? 'bg-slate-600' : 'bg-indigo-600'}`}>{isLocalMode ? "Save Locally" : "Save to Cloud"}</button>
+                                        <button type="submit" className={`text-white px-8 py-3 rounded-xl font-bold shadow-lg ${isLocalMode ? 'bg-slate-600' : 'bg-indigo-600'}`}>
+                                            {editingItem ? 'Update Response' : 'Add to Library'}
+                                        </button>
                                     </div>
                                 </form>
                             </div>
@@ -476,19 +429,18 @@
 
                         {loading ? (
                             <div className="py-32 text-center">
-                                <div className="loader mx-auto mb-6"></div>
-                                <p className="text-slate-400 font-bold text-xs tracking-widest uppercase animate-pulse">Processing...</p>
+                                <div className="loader mx-auto mb-4"></div>
+                                <p className="text-slate-400 font-bold text-xs uppercase">Connecting to Cloud...</p>
                             </div>
                         ) : (
                             <div className="space-y-10">
                                 {sections.noSection.length > 0 && (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                         {sections.noSection.map(item => <RenderCard key={item.id} item={item} />)}
                                     </div>
                                 )}
-
                                 {sections.sortedKeys.map(key => (
-                                    <div key={key} className="space-y-4 animate-in">
+                                    <div key={key} className="space-y-4">
                                         <div className="flex items-center gap-4">
                                             <span className="text-xs font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{key}</span>
                                             <div className="h-px bg-slate-200 w-full"></div>
@@ -498,11 +450,10 @@
                                         </div>
                                     </div>
                                 ))}
-
                                 {filtered.length === 0 && (
                                     <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl">
-                                        <Icons.Cloud className="w-10 h-10 text-slate-300 mx-auto mb-4" />
-                                        <p className="text-slate-400 text-sm font-medium">Library is empty. Switch to Admin to add data.</p>
+                                        <Icons.Cloud className="w-10 h-10 text-slate-200 mx-auto mb-4" />
+                                        <p className="text-slate-400 text-sm">No responses found match your criteria.</p>
                                     </div>
                                 )}
                             </div>
@@ -510,19 +461,13 @@
                     </main>
 
                     {toast.show && (
-                        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in">
+                        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-in">
                             <div className={`px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 text-white ${toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-900'}`}>
-                                <Icons.Check />
+                                {toast.type !== 'error' && <Icons.Check className="w-4 h-4" />}
                                 <span className="text-xs font-bold uppercase tracking-wider">{toast.message}</span>
                             </div>
                         </div>
                     )}
-
-                    <footer className="py-8 text-center border-t border-slate-200">
-                        <div className="text-slate-400 text-xs font-medium flex items-center justify-center gap-2">
-                            <span>Created by Ali Abo Ali</span>
-                        </div>
-                    </footer>
                 </div>
             );
         };
