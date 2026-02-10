@@ -13,31 +13,53 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #fcfcfd; color: #1a1a1a; }
-        .glass-nav { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border-bottom: 1px solid #f1f1f1; }
-        .card-shadow { boxShadow: 0 4px 20px -2px rgba(0,0,0,0.05); }
-        .loader { border: 2px solid #f3f3f3; border-top: 2px solid #4f46e5; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #0f172a; }
+        .glass-nav { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.5); }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.5); }
+        .loader { border: 2px solid #e2e8f0; border-top: 2px solid #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Smooth fade in */
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; opacity: 0; transform: translateY(10px); }
+        @keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body>
+<body class="bg-gradient-to-br from-slate-50 via-indigo-50/30 to-blue-50/30 min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- CONFIGURATION UPDATED WITH YOUR LINK DETAILS ---
+        // --- CONFIGURATION ---
         const GITHUB_USERNAME = "alitk564-bit"; 
         const REPO_NAME = "respondhub";             
         const BRANCH = "main"; 
         const FILE_NAME = "Convo Guide - Filipina YAYA Dubai (5).xlsx";
-        
-        // This generates the correct Raw URL: https://raw.githubusercontent.com/alitk564-bit/respondhub/main/Convo%20Guide%20-%20Filipina%20YAYA%20Dubai%20(5).xlsx
+        const APP_PASSWORD = "1234"; // <--- CHANGE PASSWORD HERE
+
         const GITHUB_RAW_URL = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${REPO_NAME}/${BRANCH}/${encodeURIComponent(FILE_NAME)}`;
 
+        // --- COLOR PALETTE FOR TABS ---
+        const PASTEL_PALETTE = [
+            { bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', activeBg: 'bg-rose-500', activeText: 'text-white' },
+            { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100', activeBg: 'bg-orange-500', activeText: 'text-white' },
+            { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', activeBg: 'bg-amber-500', activeText: 'text-white' },
+            { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', activeBg: 'bg-emerald-500', activeText: 'text-white' },
+            { bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-100', activeBg: 'bg-teal-500', activeText: 'text-white' },
+            { bg: 'bg-cyan-50', text: 'text-cyan-600', border: 'border-cyan-100', activeBg: 'bg-cyan-500', activeText: 'text-white' },
+            { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-100', activeBg: 'bg-sky-500', activeText: 'text-white' },
+            { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', activeBg: 'bg-indigo-500', activeText: 'text-white' },
+            { bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-100', activeBg: 'bg-violet-500', activeText: 'text-white' },
+            { bg: 'bg-fuchsia-50', text: 'text-fuchsia-600', border: 'border-fuchsia-100', activeBg: 'bg-fuchsia-500', activeText: 'text-white' },
+        ];
+
         const App = () => {
+            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [passwordInput, setPasswordInput] = useState("");
+            const [authError, setAuthError] = useState(false);
+
             const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
@@ -46,22 +68,27 @@
             const [toast, setToast] = useState(null);
 
             useEffect(() => {
-                fetchExcelFromGithub();
-            }, []);
+                if (isAuthenticated) {
+                    fetchExcelFromGithub();
+                }
+            }, [isAuthenticated]);
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (passwordInput === APP_PASSWORD) {
+                    setIsAuthenticated(true);
+                } else {
+                    setAuthError(true);
+                    setTimeout(() => setAuthError(false), 2000);
+                }
+            };
 
             const fetchExcelFromGithub = async () => {
                 setLoading(true);
                 setError(null);
                 try {
-                    console.log("Fetching from:", GITHUB_RAW_URL);
                     const response = await fetch(GITHUB_RAW_URL);
-                    
-                    if (!response.ok) {
-                        if (response.status === 404) {
-                            throw new Error(`File not found. Please ensure the filename matches exactly: "${FILE_NAME}" in the "${BRANCH}" branch.`);
-                        }
-                        throw new Error(`GitHub Error: ${response.status} ${response.statusText}`);
-                    }
+                    if (!response.ok) throw new Error("Could not connect to GitHub repository.");
                     
                     const arrayBuffer = await response.arrayBuffer();
                     const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
@@ -75,7 +102,7 @@
                             const messageKey = keys.find(k => k.toLowerCase().includes('message'));
                             const sectionKey = keys.find(k => k.toLowerCase().includes('section'));
 
-                            const scenario = row[scenarioKey] || "Untitled Scenario";
+                            const scenario = row[scenarioKey] || "Untitled";
                             const message = row[messageKey] || "";
                             const section = row[sectionKey] || "";
 
@@ -90,11 +117,6 @@
                             }
                         });
                     });
-
-                    if (allItems.length === 0) {
-                        throw new Error("The file was found but it seems empty or headers (Scenario/Message) don't match.");
-                    }
-
                     setData(allItems);
                 } catch (err) {
                     console.error("Fetch error:", err);
@@ -113,13 +135,19 @@
                     document.execCommand('copy');
                     setToast("Copied!");
                     setTimeout(() => setToast(null), 2000);
-                } catch (err) {
-                    console.error('Copy failed', err);
-                }
+                } catch (err) { console.error(err); }
                 document.body.removeChild(textArea);
             };
 
-            const categories = useMemo(() => ["All", ...new Set(data.map(d => d.category))], [data]);
+            // Process categories with themes
+            const categoryData = useMemo(() => {
+                const cats = ["All", ...new Set(data.map(d => d.category))];
+                return cats.map((cat, index) => {
+                    // Use modulo to cycle through palette if we have more categories than colors
+                    const theme = PASTEL_PALETTE[index % PASTEL_PALETTE.length];
+                    return { name: cat, theme: cat === "All" ? { bg: 'bg-slate-100', text: 'text-slate-600', activeBg: 'bg-slate-900', activeText: 'text-white' } : theme };
+                });
+            }, [data]);
 
             const filtered = useMemo(() => {
                 return data.filter(item => {
@@ -130,8 +158,39 @@
                 });
             }, [data, searchTerm, activeCategory]);
 
+            // --- LOGIN SCREEN ---
+            if (!isAuthenticated) {
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+                        <div className="glass-panel p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center fade-in">
+                            <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-6 shadow-lg shadow-indigo-200">
+                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                            </div>
+                            <h1 className="text-2xl font-extrabold text-slate-800 mb-2">Welcome Back</h1>
+                            <p className="text-slate-500 text-sm mb-6">Enter access code to view the guide.</p>
+                            
+                            <form onSubmit={handleLogin} className="space-y-4">
+                                <input 
+                                    type="password" 
+                                    placeholder="Passcode" 
+                                    className={`w-full p-4 bg-slate-50 border rounded-xl outline-none focus:ring-2 transition-all text-center tracking-widest text-lg font-bold ${authError ? 'border-red-300 ring-red-100 bg-red-50' : 'border-slate-200 focus:ring-indigo-100'}`}
+                                    value={passwordInput}
+                                    onChange={e => setPasswordInput(e.target.value)}
+                                    autoFocus
+                                />
+                                <button type="submit" className="w-full bg-slate-900 text-white p-4 rounded-xl font-bold shadow-lg hover:shadow-xl hover:bg-black transition-all">
+                                    Unlock
+                                </button>
+                            </form>
+                            <p className="mt-8 text-[10px] text-slate-300 font-bold uppercase tracking-widest">Created by Ali Abo Ali</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- MAIN APP ---
             return (
-                <div className="min-h-screen pb-20">
+                <div className="min-h-screen flex flex-col">
                     <nav className="fixed top-0 w-full z-50 glass-nav px-6 py-4">
                         <div className="max-w-6xl mx-auto flex items-center justify-between">
                             <div className="flex items-center gap-3">
@@ -139,21 +198,21 @@
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
                                 </div>
                                 <div>
-                                    <h1 className="font-extrabold text-lg tracking-tight leading-none">Response Hub</h1>
+                                    <h1 className="font-extrabold text-lg tracking-tight leading-none text-slate-800">Response Hub</h1>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Filipina YAYA Dubai</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-4">
                                 {loading ? <div className="loader"></div> : (
-                                    <button onClick={fetchExcelFromGithub} className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-indigo-100 transition-colors">
-                                        Refresh Data
+                                    <button onClick={fetchExcelFromGithub} className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-slate-50 transition-colors shadow-sm">
+                                        Sync Data
                                     </button>
                                 )}
                             </div>
                         </div>
                     </nav>
 
-                    <main className="max-w-6xl mx-auto px-6 pt-32">
+                    <main className="max-w-6xl mx-auto px-6 pt-32 flex-grow w-full pb-12">
                         {error && (
                             <div className="bg-red-50 border border-red-100 p-6 rounded-2xl text-red-700 mb-8 flex items-start gap-4">
                                 <svg className="w-6 h-6 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path></svg>
@@ -164,15 +223,20 @@
                             </div>
                         )}
 
-                        <div className="mb-10 space-y-6">
-                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                                {categories.map(cat => (
+                        <div className="mb-10 space-y-8">
+                            {/* Colorful Tabs */}
+                            <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
+                                {categoryData.map(cat => (
                                     <button 
-                                        key={cat}
-                                        onClick={() => setActiveCategory(cat)}
-                                        className={`px-6 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-slate-900 text-white shadow-xl' : 'bg-white border border-slate-100 text-slate-500 hover:bg-slate-50'}`}
+                                        key={cat.name}
+                                        onClick={() => setActiveCategory(cat.name)}
+                                        className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border ${
+                                            activeCategory === cat.name 
+                                            ? `${cat.theme.activeBg} ${cat.theme.activeText} border-transparent shadow-lg shadow-slate-200 scale-105` 
+                                            : `bg-white border-slate-100 text-slate-500 hover:scale-105 ${cat.theme.hover || ''}`
+                                        }`}
                                     >
-                                        {cat}
+                                        {cat.name}
                                     </button>
                                 ))}
                             </div>
@@ -180,8 +244,8 @@
                             <div className="relative group">
                                 <input 
                                     type="text"
-                                    placeholder="Search guide by keywords..."
-                                    className="w-full bg-white border border-slate-200 p-5 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-200 transition-all text-lg shadow-sm"
+                                    placeholder="Search guide..."
+                                    className="w-full bg-white border border-slate-200 p-5 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-200 transition-all text-lg shadow-sm placeholder:text-slate-300"
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
                                 />
@@ -194,30 +258,36 @@
                         {loading && data.length === 0 ? (
                             <div className="py-32 text-center">
                                 <div className="loader mx-auto mb-6 scale-125"></div>
-                                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest animate-pulse">Connecting to Repository...</p>
+                                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest animate-pulse">Syncing Library...</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filtered.map(item => (
-                                    <div 
-                                        key={item.id}
-                                        onClick={() => copyToClipboard(item.message)}
-                                        className="bg-white p-6 rounded-[2rem] border border-slate-50 hover:border-indigo-100 hover:shadow-2xl hover:shadow-indigo-100/50 transition-all cursor-pointer flex flex-col group relative overflow-hidden"
-                                    >
-                                        <div className="flex justify-between items-start mb-5">
-                                            <span className="bg-slate-50 text-slate-500 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                                {item.category}
-                                            </span>
-                                            {item.section && <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">{item.section}</span>}
+                                {filtered.map((item, idx) => {
+                                    // Find theme for this item based on category
+                                    const catTheme = categoryData.find(c => c.name === item.category)?.theme || PASTEL_PALETTE[0];
+                                    
+                                    return (
+                                        <div 
+                                            key={item.id}
+                                            onClick={() => copyToClipboard(item.message)}
+                                            style={{ animationDelay: `${idx * 0.05}s` }}
+                                            className="fade-in bg-white p-6 rounded-[2rem] border border-slate-100 hover:border-indigo-100 hover:shadow-xl hover:shadow-indigo-100/40 transition-all cursor-pointer flex flex-col group relative overflow-hidden h-full"
+                                        >
+                                            <div className="flex justify-between items-start mb-5">
+                                                <span className={`${catTheme.bg} ${catTheme.text} px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider`}>
+                                                    {item.category}
+                                                </span>
+                                                {item.section && <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">{item.section}</span>}
+                                            </div>
+                                            <h3 className="font-extrabold text-slate-800 mb-4 text-lg leading-tight group-hover:text-indigo-600 transition-colors">{item.scenario}</h3>
+                                            <p className="text-slate-500 text-sm leading-relaxed mb-8 line-clamp-6">{item.message}</p>
+                                            <div className="mt-auto pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-300 uppercase tracking-widest group-hover:text-indigo-400 transition-colors">
+                                                <span>Tap to Copy</span>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                                            </div>
                                         </div>
-                                        <h3 className="font-extrabold text-slate-800 mb-4 text-lg leading-tight group-hover:text-indigo-600 transition-colors">{item.scenario}</h3>
-                                        <p className="text-slate-500 text-sm leading-relaxed mb-8 line-clamp-6">{item.message}</p>
-                                        <div className="mt-auto pt-5 border-t border-slate-50 flex items-center justify-between text-[10px] font-black text-slate-300 uppercase tracking-widest group-hover:text-indigo-400 transition-colors">
-                                            <span>Click to Copy Text</span>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                         
@@ -228,9 +298,15 @@
                         )}
                     </main>
 
+                    <footer className="py-8 text-center">
+                        <p className="text-slate-300 font-bold text-[10px] uppercase tracking-widest">
+                            Created by Ali Abo Ali
+                        </p>
+                    </footer>
+
                     {toast && (
-                        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl shadow-indigo-300 z-[100] flex items-center gap-3 animate-in">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl z-[100] flex items-center gap-3 animate-bounce">
+                            <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
                             {toast}
                         </div>
                     )}
