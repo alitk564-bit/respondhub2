@@ -18,7 +18,7 @@
         }
     </script>
     
-    <!-- Firebase SDKs (Compat) -->
+    <!-- Firebase SDKs (Compat - Stable for single file) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -47,6 +47,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
+        // --- ICONS ---
         const Icon = ({ path, className = "w-5 h-5" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 {path}
@@ -56,30 +57,42 @@
             Search: () => <Icon path={<><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>} />,
             Plus: () => <Icon path={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>} />,
             X: () => <Icon path={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />,
+            Check: () => <Icon path={<polyline points="20 6 9 17 4 12"/>} />,
+            Edit: () => <Icon path={<><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>} />,
+            Trash: () => <Icon path={<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>} />,
             Upload: () => <Icon path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>} />,
+            Github: () => <Icon path={<><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></>} />,
             Lock: () => <Icon path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>} />,
             Unlock: () => <Icon path={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>} />,
             Zap: () => <Icon path={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />,
-            Edit: () => <Icon path={<><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>} />,
+            Cloud: () => <Icon path={<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>} />,
+            Copy: () => <Icon path={<><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>} />,
+            Save: () => <Icon path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>} />,
+            Refresh: () => <Icon path={<><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>} />,
             HardDrive: () => <Icon path={<><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></>} />
         };
 
+        // --- Firebase Init ---
         let app, auth, db, appId, isCloudAvailable = false;
         try {
-            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-            if (firebaseConfig) {
-                app = firebase.initializeApp(firebaseConfig);
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                const config = JSON.parse(__firebase_config);
+                app = firebase.initializeApp(config);
                 auth = firebase.auth();
                 db = firebase.firestore();
                 appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
                 isCloudAvailable = true;
             }
-        } catch (e) { console.warn("Cloud features unavailable, using local mode."); }
+        } catch (e) {
+            console.log("Local Mode Active");
+        }
 
         const THEMES = [
-            { id: 'blue', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-            { id: 'violet', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
-            { id: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' }
+            { id: 'blue', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', ring: 'ring-blue-500' },
+            { id: 'violet', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', ring: 'ring-violet-500' },
+            { id: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', ring: 'ring-emerald-500' },
+            { id: 'amber', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', ring: 'ring-amber-500' },
+            { id: 'rose', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', ring: 'ring-rose-500' },
         ];
 
         const App = () => {
@@ -91,162 +104,449 @@
             const [searchTerm, setSearchTerm] = useState("");
             const [activeCategory, setActiveCategory] = useState("All");
             const [showForm, setShowForm] = useState(false);
+            const [showGithubModal, setShowGithubModal] = useState(false);
+            const [githubUrl, setGithubUrl] = useState(localStorage.getItem('github_excel_url') || "");
             const [editingItem, setEditingItem] = useState(null);
-            const [toast, setToast] = useState({ show: false, message: "" });
+            const [toast, setToast] = useState({ show: false, message: "", type: "success" });
             const [form, setForm] = useState({ category: "", scenario: "", message: "", section: "" });
+            
             const fileInput = useRef(null);
 
-            // GITHUB SYNC: Paste your raw GitHub Excel URL here
-            const GITHUB_EXCEL_URL = "https://github.com/alitk564-bit/respondhub/blob/main/Convo%20Guide%20-%20Filipina%20YAYA%20Dubai%20(5).xlsx"; 
-
-            useEffect(() => {
-                if (!isCloudAvailable) {
-                    const localData = localStorage.getItem('agent_helper_data');
-                    if(localData) setData(JSON.parse(localData));
-                    setLoading(false);
-                    return;
-                }
-                const init = async () => {
-                    const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                    if (token) await auth.signInWithCustomToken(token);
-                    else await auth.signInAnonymously();
-                };
-                init();
-                return auth.onAuthStateChanged(setUser);
-            }, []);
-
-            useEffect(() => {
-                if (isLocalMode || !user) return;
-                const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
-                const unsub = path.onSnapshot(snap => {
-                    setData(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-                    setLoading(false);
-                }, () => { setIsLocalMode(true); setLoading(false); });
-                return () => unsub();
-            }, [user, isLocalMode]);
-
-            useEffect(() => {
-                if (GITHUB_EXCEL_URL && isAdmin) {
-                    fetch(GITHUB_EXCEL_URL).then(res => res.blob()).then(blob => processExcel(blob, true)).catch(console.error);
-                }
-            }, [isAdmin]);
-
-            const processExcel = (fileOrBlob, silent = false) => {
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    const wb = XLSX.read(e.target.result, { type: 'binary' });
+            // Fetch GitHub Excel logic defined early to use in multiple places
+            const fetchFromGithubInternal = async (url) => {
+                if (!url) return 0;
+                try {
+                    const response = await fetch(url);
+                    const arrayBuffer = await response.arrayBuffer();
+                    const uint8 = new Uint8Array(arrayBuffer);
+                    const workbook = XLSX.read(uint8, { type: 'array' });
+                    
                     let count = 0;
-                    for (const name of wb.SheetNames) {
-                        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name]);
+                    let newItems = [];
+                    const colRef = !isLocalMode ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses') : null;
+
+                    for (const sheet of workbook.SheetNames) {
+                        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet]);
                         for (const row of rows) {
-                            const entry = {
-                                category: name,
-                                scenario: String(row.Scenario || row.Title || "Untitled"),
-                                message: String(row.Message || row.Content || ""),
-                                section: String(row.Section || ""),
-                                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                            };
-                            if (entry.message) {
+                            const keys = Object.keys(row);
+                            const scenario = row[keys.find(k => k.toLowerCase().includes('scenario'))] || "Untitled";
+                            const message = row[keys.find(k => k.toLowerCase().includes('message'))] || "";
+                            
+                            if (message) {
+                                const entry = {
+                                    category: sheet,
+                                    scenario: String(scenario),
+                                    message: String(message),
+                                    section: String(row.Section || ""),
+                                    createdAt: new Date().toISOString()
+                                };
+
                                 if (isLocalMode) {
-                                    const updated = [...data, { ...entry, id: Date.now() + count }];
-                                    setData(updated);
-                                    localStorage.setItem('agent_helper_data', JSON.stringify(updated));
+                                    entry.id = `gh-${Date.now()}-${count}`;
+                                    newItems.push(entry);
                                 } else {
-                                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').add(entry);
+                                    // In Cloud mode, we just check if it exists or add it.
+                                    // Note: Simple duplicate prevention could go here.
+                                    await colRef.add({ ...entry, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
                                 }
                                 count++;
                             }
                         }
                     }
-                    if (!silent) showToast(`Imported ${count} items`);
-                };
-                reader.readAsBinaryString(fileOrBlob);
-            };
-
-            const showToast = (message) => {
-                setToast({ show: true, message });
-                setTimeout(() => setToast({ show: false, message: "" }), 2500);
-            };
-
-            const toggleAdmin = () => {
-                if (isAdmin) { setIsAdmin(false); showToast("Admin Off"); }
-                else {
-                    const pw = prompt("Admin Password:");
-                    if (pw === "ALM989$100%") { setIsAdmin(true); showToast("Admin On"); }
-                    else if (pw !== null) alert("Access Denied");
+                    if (isLocalMode) {
+                        setData(prev => {
+                            const updated = [...newItems, ...prev];
+                            // Basic unique filter by scenario and message to avoid duplicates on auto-refresh
+                            const unique = Array.from(new Map(updated.map(item => [`${item.scenario}-${item.message}`, item])).values());
+                            localStorage.setItem('agent_helper_data', JSON.stringify(unique));
+                            return unique;
+                        });
+                    }
+                    return count;
+                } catch (err) {
+                    console.error("Auto-sync failed", err);
+                    return -1;
                 }
             };
 
-            const filteredData = useMemo(() => {
-                return data.filter(item => {
-                    const matchSearch = item.scenario.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                      item.message.toLowerCase().includes(searchTerm.toLowerCase());
-                    const matchCat = activeCategory === "All" || item.category === activeCategory;
-                    return matchSearch && matchCat;
-                });
-            }, [data, searchTerm, activeCategory]);
+            // Initial Setup
+            useEffect(() => {
+                const initialize = async () => {
+                    if (!isCloudAvailable) {
+                        const localData = localStorage.getItem('agent_helper_data');
+                        if(localData) setData(JSON.parse(localData));
+                        
+                        // AUTO-SYNC: If a GitHub URL is saved, fetch it on load
+                        if (githubUrl) {
+                            const count = await fetchFromGithubInternal(githubUrl);
+                            if(count > 0) showToast(`Auto-synced ${count} GitHub items`);
+                        }
+                        setLoading(false);
+                        return;
+                    }
 
-            const categories = ["All", ...new Set(data.map(d => d.category))];
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await auth.signInWithCustomToken(__initial_auth_token);
+                        } else {
+                            await auth.signInAnonymously();
+                        }
+                    } catch (e) { 
+                        setIsLocalMode(true);
+                        setLoading(false);
+                    }
+                };
+                initialize();
+                return auth.onAuthStateChanged(setUser);
+            }, []);
+
+            // Firestore Data Listener
+            useEffect(() => {
+                if (isLocalMode || !user || !db) return;
+                const unsubscribe = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses')
+                    .onSnapshot((snapshot) => {
+                        const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        setData(items);
+                        setLoading(false);
+                    }, () => {
+                        setIsLocalMode(true);
+                        setLoading(false);
+                    });
+                return () => unsubscribe();
+            }, [user, isLocalMode]);
+
+            const categories = useMemo(() => {
+                const unique = ["All", ...new Set(data.map(d => d.category))];
+                return unique.map((name, i) => ({ name, theme: THEMES[i % THEMES.length] }));
+            }, [data]);
+
+            const showToast = (msg, type = "success") => {
+                setToast({ show: true, message: msg, type });
+                setTimeout(() => setToast({ show: false, message: "", type: "success" }), 2500);
+            };
+
+            const toggleAdmin = () => {
+                if (isAdmin) {
+                    setIsAdmin(false);
+                    showToast("Exited Admin Mode");
+                } else {
+                    const pw = prompt("Enter Admin Password:");
+                    if (pw === "ALM989$100%") {
+                        setIsAdmin(true);
+                        showToast("Admin Mode Active");
+                    } else if (pw !== null) {
+                        showToast("Incorrect Password", "error");
+                    }
+                }
+            };
+
+            const processWorkbookManual = async (wb) => {
+                let count = 0;
+                let newItems = [];
+                const colRef = !isLocalMode ? db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses') : null;
+
+                for (const sheet of wb.SheetNames) {
+                    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
+                    for (const row of rows) {
+                        const keys = Object.keys(row);
+                        const scenario = row[keys.find(k => k.toLowerCase().includes('scenario'))] || "Untitled";
+                        const message = row[keys.find(k => k.toLowerCase().includes('message'))] || "";
+                        
+                        if (message) {
+                            const entry = {
+                                category: sheet,
+                                scenario: String(scenario),
+                                message: String(message),
+                                section: String(row.Section || ""),
+                                createdAt: new Date().toISOString()
+                            };
+
+                            if (isLocalMode) {
+                                entry.id = `local-${Date.now()}-${count}`;
+                                newItems.push(entry);
+                            } else {
+                                await colRef.add({ ...entry, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                            }
+                            count++;
+                        }
+                    }
+                }
+                if (isLocalMode) {
+                    setData(prev => {
+                        const updated = [...newItems, ...prev];
+                        localStorage.setItem('agent_helper_data', JSON.stringify(updated));
+                        return updated;
+                    });
+                }
+                return count;
+            };
+
+            const handleGithubSyncManual = async () => {
+                if (!githubUrl || !isAdmin) return;
+                setLoading(true);
+                const count = await fetchFromGithubInternal(githubUrl);
+                if (count >= 0) {
+                    localStorage.setItem('github_excel_url', githubUrl);
+                    showToast(`Synced ${count} items from GitHub`);
+                    setShowGithubModal(false);
+                } else {
+                    showToast("GitHub Sync Failed. Check URL.", "error");
+                }
+                setLoading(false);
+            };
+
+            const handleSave = async (e) => {
+                e.preventDefault();
+                if (!isAdmin) return;
+                try {
+                    if (isLocalMode) {
+                        let updated;
+                        if (editingItem) {
+                            updated = data.map(i => i.id === editingItem.id ? { ...i, ...form } : i);
+                        } else {
+                            updated = [{ ...form, id: Date.now().toString() }, ...data];
+                        }
+                        setData(updated);
+                        localStorage.setItem('agent_helper_data', JSON.stringify(updated));
+                    } else {
+                        const colRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses');
+                        if (editingItem) {
+                            await colRef.doc(editingItem.id).update({ ...form, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        } else {
+                            await colRef.add({ ...form, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        }
+                    }
+                    setShowForm(false);
+                    setEditingItem(null);
+                    setForm({ category: "", scenario: "", message: "", section: "" });
+                    showToast("Saved successfully");
+                } catch (err) { showToast("Save failed", "error"); }
+            };
+
+            const handleDelete = async (id, e) => {
+                e.stopPropagation();
+                if (!isAdmin || !confirm("Delete this permanently?")) return;
+                if (isLocalMode) {
+                    const updated = data.filter(i => i.id !== id);
+                    setData(updated);
+                    localStorage.setItem('agent_helper_data', JSON.stringify(updated));
+                } else {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('responses').doc(id).delete();
+                }
+                showToast("Deleted");
+            };
+
+            const filtered = data.filter(item => {
+                const s = searchTerm.toLowerCase();
+                const matchesSearch = (item.scenario || "").toLowerCase().includes(s) || (item.message || "").toLowerCase().includes(s);
+                const matchesCat = activeCategory === "All" || item.category === activeCategory;
+                return matchesSearch && matchesCat;
+            });
+
+            const sections = useMemo(() => {
+                const groups = {};
+                const noSection = [];
+                filtered.forEach(item => {
+                    if (item.section && item.section.trim()) {
+                        if (!groups[item.section]) groups[item.section] = [];
+                        groups[item.section].push(item);
+                    } else {
+                        noSection.push(item);
+                    }
+                });
+                return { groups, sortedKeys: Object.keys(groups).sort(), noSection };
+            }, [filtered]);
+
+            const RenderCard = ({ item }) => {
+                const theme = categories.find(c => c.name === item.category)?.theme || THEMES[0];
+                return (
+                    <div 
+                        onClick={() => { 
+                            navigator.clipboard.writeText(item.message); 
+                            showToast("Copied to clipboard!"); 
+                        }}
+                        className="group bg-white p-5 rounded-2xl shadow-card border border-transparent hover:border-slate-200 hover:shadow-lg transition-all cursor-pointer relative flex flex-col h-full overflow-hidden"
+                    >
+                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${theme.bg.replace('bg-', 'bg-')}-500`}></div>
+                        <div className="flex justify-between items-start mb-3 pl-2">
+                            <div className="flex flex-col gap-1">
+                                <span className={`w-fit px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${theme.bg} ${theme.text}`}>
+                                    {item.category}
+                                </span>
+                                <h3 className="font-bold text-slate-800 leading-snug">{item.scenario}</h3>
+                            </div>
+                            {isAdmin && (
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={(e) => { e.stopPropagation(); setEditingItem(item); setForm(item); setShowForm(true); }} className="p-1.5 hover:bg-slate-100 rounded text-slate-400"><Icons.Edit /></button>
+                                    <button onClick={(e) => handleDelete(item.id, e)} className="p-1.5 hover:bg-red-50 rounded text-red-400"><Icons.Trash /></button>
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-slate-500 text-sm line-clamp-4 leading-relaxed mb-4 pl-2 whitespace-pre-wrap">{item.message}</p>
+                        <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] font-bold text-slate-300 uppercase pl-2">
+                            <span>Tap to copy</span>
+                            <Icons.Copy className="w-3 h-3" />
+                        </div>
+                    </div>
+                );
+            };
 
             return (
-                <div className="min-h-screen flex flex-col">
-                    <header className="fixed top-0 w-full z-50 glass px-4 py-4">
+                <div className="min-h-screen flex flex-col bg-[#f8fafc]">
+                    <header className="fixed top-0 w-full z-50 glass px-4 md:px-8 py-4">
                         <div className="max-w-7xl mx-auto flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <div className={`p-2 rounded-lg text-white ${isLocalMode ? 'bg-gray-600' : 'bg-indigo-600'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg text-white shadow-lg ${isLocalMode ? 'bg-slate-600' : 'bg-indigo-600'}`}>
                                     {isLocalMode ? <Icons.HardDrive /> : <Icons.Zap />}
                                 </div>
-                                <h1 className="font-bold hidden sm:block">Response Hub</h1>
+                                <div className="hidden sm:block">
+                                    <h1 className="font-bold text-slate-900 leading-none">Response Hub</h1>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                        {isLocalMode ? "Local Mode + Auto-Sync" : (isAdmin ? 'Admin View' : 'Live Sync On')}
+                                    </p>
+                                </div>
                             </div>
+
                             <div className="flex gap-2">
-                                {isAdmin && (
+                                {isAdmin ? (
                                     <>
-                                        <button onClick={() => fileInput.current.click()} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"><Icons.Upload /></button>
-                                        <button onClick={() => setShowForm(!showForm)} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
-                                            {showForm ? <Icons.X /> : <Icons.Plus />} <span>{showForm ? "Close" : "New"}</span>
+                                        <button onClick={() => setShowGithubModal(true)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors" title="Settings / GitHub Link"><Icons.Github /></button>
+                                        <button onClick={() => fileInput.current.click()} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors" title="Upload Local Excel"><Icons.Upload /></button>
+                                        <button onClick={() => { setShowForm(!showForm); setEditingItem(null); }} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-black transition-all">
+                                            {showForm ? <Icons.X /> : <Icons.Plus />}
+                                            <span className="hidden xs:inline">New Entry</span>
                                         </button>
+                                        <button onClick={toggleAdmin} className="p-2 text-indigo-600 bg-indigo-50 rounded-lg"><Icons.Unlock /></button>
                                     </>
+                                ) : (
+                                    <button onClick={toggleAdmin} className="px-4 py-2 text-slate-400 hover:text-slate-600 rounded-lg flex items-center gap-2 text-xs font-bold transition-colors">
+                                        <Icons.Lock /> Admin Login
+                                    </button>
                                 )}
-                                <button onClick={toggleAdmin} className="p-2 text-gray-400 hover:text-gray-600">
-                                    {isAdmin ? <Icons.Unlock /> : <Icons.Lock />}
-                                </button>
-                                <input type="file" ref={fileInput} className="hidden" onChange={e => processExcel(e.target.files[0])} />
+                                <input type="file" ref={fileInput} onChange={(e) => {
+                                    const reader = new FileReader();
+                                    reader.onload = (evt) => {
+                                        const wb = XLSX.read(evt.target.result, { type: 'binary' });
+                                        processWorkbookManual(wb).then(count => showToast(`Uploaded ${count} items`));
+                                    };
+                                    reader.readAsBinaryString(e.target.files[0]);
+                                }} className="hidden" accept=".xlsx,.xls" />
                             </div>
                         </div>
                     </header>
 
-                    <main className="max-w-5xl mx-auto w-full px-4 pt-24 pb-12">
-                        <div className="mb-6 space-y-4">
-                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                    <main className="max-w-7xl mx-auto w-full px-4 md:px-8 pt-24 pb-12 flex-grow">
+                        <div className="mb-8 space-y-6">
+                            <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 scrollbar-hide">
                                 {categories.map(cat => (
-                                    <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap ${activeCategory === cat ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200'}`}>
-                                        {cat}
+                                    <button 
+                                        key={cat.name} 
+                                        onClick={() => setActiveCategory(cat.name)}
+                                        className={`px-5 py-2 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${activeCategory === cat.name ? `${cat.theme.bg} ${cat.theme.text} ${cat.theme.border}` : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}
+                                    >
+                                        {cat.name}
                                     </button>
                                 ))}
                             </div>
                             <div className="relative">
-                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300"><Icons.Search /></div>
-                                <input type="text" placeholder="Search canned responses..." className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-indigo-50" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300"><Icons.Search /></div>
+                                <input 
+                                    type="text" 
+                                    placeholder="Search responses..." 
+                                    className="w-full pl-14 pr-10 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-indigo-50 transition-all text-lg shadow-sm"
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                />
                             </div>
                         </div>
 
-                        {loading ? <div className="loader mx-auto mt-20"></div> : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {filteredData.map(item => (
-                                    <div key={item.id} onClick={() => { navigator.clipboard.writeText(item.message); showToast("Copied!"); }} className="bg-white p-5 rounded-xl border border-gray-100 shadow-card cursor-pointer hover:border-indigo-200 transition-all animate-in group">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className="text-[10px] font-black uppercase text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">{item.category}</span>
-                                            {isAdmin && <button className="text-gray-300 group-hover:text-indigo-400"><Icons.Edit /></button>}
+                        {showGithubModal && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in">
+                                <div className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h2 className="text-xl font-bold flex items-center gap-2"><Icons.Github /> Repository Connection</h2>
+                                        <button onClick={() => setShowGithubModal(false)}><Icons.X /></button>
+                                    </div>
+                                    <p className="text-sm text-slate-500 mb-4">Paste the <b>Raw URL</b> of your Excel file on GitHub. The website will automatically fetch updates from this link every time it is opened.</p>
+                                    <input 
+                                        className="w-full p-4 bg-slate-50 border rounded-xl mb-4 text-sm font-mono" 
+                                        placeholder="https://raw.githubusercontent.com/..." 
+                                        value={githubUrl}
+                                        onChange={(e) => setGithubUrl(e.target.value)}
+                                    />
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setShowGithubModal(false)} className="flex-1 py-3 text-slate-400 font-bold">Cancel</button>
+                                        <button onClick={handleGithubSyncManual} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold flex items-center justify-center gap-2">
+                                            <Icons.Save /> Save & Sync
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {showForm && (
+                            <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 mb-8 shadow-xl animate-in">
+                                <h2 className="text-xl font-bold mb-6">{editingItem ? "Edit Response" : "New Response"}</h2>
+                                <form onSubmit={handleSave} className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border" placeholder="Category" value={form.category} onChange={e => setForm({...form, category: e.target.value})} required />
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border" placeholder="Section (Optional)" value={form.section} onChange={e => setForm({...form, section: e.target.value})} />
+                                        <input className="w-full p-4 bg-slate-50 rounded-xl border" placeholder="Scenario Title" value={form.scenario} onChange={e => setForm({...form, scenario: e.target.value})} required />
+                                    </div>
+                                    <textarea className="w-full p-4 bg-slate-50 rounded-xl border h-32" placeholder="Message content..." value={form.message} onChange={e => setForm({...form, message: e.target.value})} required />
+                                    <div className="flex justify-end gap-3">
+                                        <button type="button" onClick={() => setShowForm(false)} className="px-6 py-3 text-slate-400 font-bold">Cancel</button>
+                                        <button type="submit" className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold">Save Entry</button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+
+                        {loading ? (
+                            <div className="py-32 text-center">
+                                <div className="loader mx-auto mb-6"></div>
+                                <p className="text-slate-400 font-bold text-xs tracking-widest uppercase animate-pulse">Syncing Library...</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-10">
+                                {sections.noSection.length > 0 && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {sections.noSection.map(item => <RenderCard key={item.id} item={item} />)}
+                                    </div>
+                                )}
+                                {sections.sortedKeys.map(key => (
+                                    <div key={key} className="space-y-4">
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{key}</span>
+                                            <div className="h-px bg-slate-200 w-full"></div>
                                         </div>
-                                        <h3 className="font-bold text-gray-800 text-sm mb-1">{item.scenario}</h3>
-                                        <p className="text-gray-500 text-xs line-clamp-2 whitespace-pre-wrap">{item.message}</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {sections.groups[key].map(item => <RenderCard key={item.id} item={item} />)}
+                                        </div>
                                     </div>
                                 ))}
+                                {filtered.length === 0 && (
+                                    <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl">
+                                        <Icons.Cloud className="w-10 h-10 text-slate-300 mx-auto mb-4" />
+                                        <p className="text-slate-400 text-sm font-medium">No results found.</p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </main>
 
-                    {toast.show && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-2 rounded-full shadow-2xl z-50 text-xs font-bold animate-in">{toast.message}</div>}
+                    {toast.show && (
+                        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in">
+                            <div className={`px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 text-white bg-slate-900 border border-slate-700`}>
+                                <Icons.Check className="text-green-400" />
+                                <span className="text-xs font-bold uppercase tracking-wider">{toast.message}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    <footer className="py-8 text-center border-t border-slate-200">
+                        <div className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Response Hub v2.1 • Created by Ali Abo Ali</div>
+                    </footer>
                 </div>
             );
         };
@@ -256,5 +556,3 @@
     </script>
 </body>
 </html>
-
-
